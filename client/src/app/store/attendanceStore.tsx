@@ -12,6 +12,11 @@ export type AttendanceRecord = {
   id: string;
   staffName: string; // 직원 이름
   staffInitial: string; // 성 첫글자
+  /**
+   * 어느 사업장에서 찍은 기록인지 (다중 사업장 지원 핵심)
+   * 백엔드 붙이기 전 AsyncStorage 단계에서도 미리 반영
+   */
+  workplaceId: string;
   clockIn: string; // 출근 시각 (예: "09:02")
   clockOut: string | null; // 퇴근 시각 (null이면 근무중)
   date: string; // 날짜 (예: "2025.03.14")
@@ -38,8 +43,10 @@ const STORAGE_KEY = "moara_attendance_records";
 interface AttendanceContextType {
   records: AttendanceRecord[];
   isLoaded: boolean;
-  clockIn: (staffName: string, staffInitial: string) => void;
+  clockIn: (staffName: string, staffInitial: string, workplaceId: string) => void;
   clockOut: (recordId: string) => void;
+  /** 특정 사업장의 기록만 필터 */
+  getRecordsByWorkplace: (workplaceId: string) => AttendanceRecord[];
   approveRecord: (recordId: string) => void;
   rejectRecord: (recordId: string) => void;
   clearAllData: () => Promise<void>;
@@ -72,11 +79,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
               id: "1",
               staffName: "김민지",
               staffInitial: "김",
+              workplaceId: "workplace-1",
               clockIn: "09:02",
               clockOut: "18:05",
               date: "2025.03.14",
-              workMinutes: 543, // 9시간 3분
-              actualWorkMinutes: 483, // 8시간 3분 (휴게 60분 제외)
+              workMinutes: 543,
+              actualWorkMinutes: 483,
               breakMinutes: 60,
               day: "(목)",
               status: "PENDING",
@@ -90,11 +98,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
               id: "2",
               staffName: "박준혁",
               staffInitial: "박",
+              workplaceId: "workplace-1",
               clockIn: "10:15",
               clockOut: "18:00",
               date: "2025.03.14",
-              workMinutes: 465, // 7시간 45분
-              actualWorkMinutes: 405, // 6시간 45분 (휴게 60분 제외)
+              workMinutes: 465,
+              actualWorkMinutes: 405,
               breakMinutes: 60,
               day: "(목)",
               status: "PENDING",
@@ -104,11 +113,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
               id: "3",
               staffName: "이수연",
               staffInitial: "이",
+              workplaceId: "workplace-1",
               clockIn: "08:50",
               clockOut: "17:30",
               date: "2025.03.14",
-              workMinutes: 520, // 8시간 40분
-              actualWorkMinutes: 460, // 7시간 40분 (휴게 60분 제외)
+              workMinutes: 520,
+              actualWorkMinutes: 460,
               breakMinutes: 60,
               day: "(목)",
               status: "CONFIRMED",
@@ -174,12 +184,17 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   };
 
   // 출근 기록
-  const clockIn = (staffName: string, staffInitial: string) => {
+  const clockIn = (
+    staffName: string,
+    staffInitial: string,
+    workplaceId: string,
+  ) => {
     const today = getTodayDate();
     const newRecord: AttendanceRecord = {
       id: `${Date.now()}-${staffName}`,
       staffName,
       staffInitial,
+      workplaceId,
       clockIn: getCurrentTime(),
       clockOut: null,
       date: today,
@@ -269,6 +284,11 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  // 특정 사업장 기록 필터
+  const getRecordsByWorkplace = (workplaceId: string): AttendanceRecord[] => {
+    return records.filter((r) => r.workplaceId === workplaceId);
+  };
+
   const value: AttendanceContextType = {
     records,
     isLoaded,
@@ -280,6 +300,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     getPendingRecords,
     getConfirmedRecords,
     getTodayRecord,
+    getRecordsByWorkplace,
   };
 
   return (

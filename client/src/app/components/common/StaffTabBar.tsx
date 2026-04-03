@@ -5,31 +5,31 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../../constants/theme";
 
 type StaffTabBarProps = {
-  activeTab: "home" | "history" | "payslip" | "profile";
+  activeTab: "history" | "payslip" | "workplace" | "profile";
 };
 
 const TABS = [
   {
-    key: "home",
-    label: "홈",
-    icon: require("../../../../assets/icons/tab-home.png"),
-    route: "/staff-main",
-  },
-  {
     key: "history",
-    label: "근무이력",
+    label: "기록",
     icon: require("../../../../assets/icons/tab-history.png"),
     route: "/work-history",
   },
   {
     key: "payslip",
-    label: "급여명세서",
+    label: "급여",
     icon: require("../../../../assets/icons/tab-payslip.png"),
     route: "/payslip",
   },
   {
+    key: "workplace",
+    label: "사업장",
+    icon: require("../../../../assets/icons/tab-home.png"),
+    route: "/join-workplace",
+  },
+  {
     key: "profile",
-    label: "내정보",
+    label: "설정",
     icon: require("../../../../assets/icons/tab-profile.png"),
     route: "/profile",
   },

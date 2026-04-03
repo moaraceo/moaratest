@@ -20,7 +20,11 @@ export type StaffMember = {
   resignDate?: string; // 퇴사일 (없으면 undefined)
   rejoinDate?: string; // 재입사일 (없으면 undefined)
   wageEffectiveDate?: string; // 시급 적용 시점
-  workplaceId: string; // 소속 사업장
+  /**
+   * 소속 사업장 ID 목록 (1:N — 직원이 여러 사업장에서 근무 가능)
+   * 초대 코드로 참여할 때 마다 여기에 추가됨
+   */
+  workplaceIds: string[];
 };
 
 // 저장 키 상수
@@ -36,7 +40,7 @@ const INITIAL_STAFF_DATA: StaffMember[] = [
     hourlyWage: Math.max(CURRENT_MINIMUM_WAGE, 10030),
     status: "active",
     joinDate: "2024.01.15",
-    workplaceId: "workplace-1",
+    workplaceIds: ["workplace-1", "workplace-2"], // 강남점 + 홍대점 근무
   },
   {
     id: "2",
@@ -46,7 +50,7 @@ const INITIAL_STAFF_DATA: StaffMember[] = [
     hourlyWage: Math.max(CURRENT_MINIMUM_WAGE, 10030),
     status: "active",
     joinDate: "2024.03.01",
-    workplaceId: "workplace-1",
+    workplaceIds: ["workplace-1"],
   },
   {
     id: "3",
@@ -56,7 +60,7 @@ const INITIAL_STAFF_DATA: StaffMember[] = [
     hourlyWage: 10500,
     status: "active",
     joinDate: "2024.06.01",
-    workplaceId: "workplace-1",
+    workplaceIds: ["workplace-1"],
   },
   {
     id: "4",
@@ -66,7 +70,7 @@ const INITIAL_STAFF_DATA: StaffMember[] = [
     hourlyWage: Math.max(CURRENT_MINIMUM_WAGE, 10030),
     status: "probation",
     joinDate: "2025.02.01",
-    workplaceId: "workplace-1",
+    workplaceIds: ["workplace-1"],
   },
   {
     id: "5",
@@ -77,7 +81,7 @@ const INITIAL_STAFF_DATA: StaffMember[] = [
     status: "resigned",
     joinDate: "2024.01.01",
     resignDate: "2025.01.31",
-    workplaceId: "workplace-1",
+    workplaceIds: ["workplace-1"],
   },
 ];
 
@@ -93,6 +97,10 @@ interface StaffContextType {
   getResignedStaff: () => StaffMember[];
   isUnderMinimumWage: (hourlyWage: number) => boolean;
   getUnderWageStaff: () => StaffMember[];
+  /** 특정 직원을 새 사업장에 추가 (초대 코드 참여 후 호출) */
+  addStaffToWorkplace: (staffId: string, workplaceId: string) => void;
+  /** 사업장 기준 재직중 직원 필터 */
+  getActiveStaffByWorkplace: (workplaceId: string) => StaffMember[];
 }
 
 const StaffContext = createContext<StaffContextType | undefined>(undefined);
@@ -198,6 +206,26 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     return staffList.filter((staff) => staff.status === "resigned");
   };
 
+  // 특정 사업장의 재직중 직원
+  const getActiveStaffByWorkplace = (workplaceId: string): StaffMember[] => {
+    return staffList.filter(
+      (staff) =>
+        (staff.status === "active" || staff.status === "probation") &&
+        staff.workplaceIds.includes(workplaceId),
+    );
+  };
+
+  // 초대 코드 참여 후 직원을 사업장에 추가
+  const addStaffToWorkplace = (staffId: string, workplaceId: string) => {
+    setStaffList((prev) =>
+      prev.map((staff) => {
+        if (staff.id !== staffId) return staff;
+        if (staff.workplaceIds.includes(workplaceId)) return staff; // 이미 속해있으면 무시
+        return { ...staff, workplaceIds: [...staff.workplaceIds, workplaceId] };
+      }),
+    );
+  };
+
   // 데이터 초기화 기능
   const clearStaffData = async () => {
     try {
@@ -221,6 +249,8 @@ export function StaffProvider({ children }: { children: ReactNode }) {
         getResignedStaff,
         isUnderMinimumWage,
         getUnderWageStaff,
+        addStaffToWorkplace,
+        getActiveStaffByWorkplace,
       }}
     >
       {children}

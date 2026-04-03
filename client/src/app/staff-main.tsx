@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
@@ -346,7 +346,7 @@ export default function StaffMainScreen() {
         </View>
       </ScrollView>
 
-      <StaffTabBar activeTab="home" />
+      <StaffTabBar activeTab="workplace" />
     </SafeAreaView>
   );
 }
@@ -395,7 +395,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   scrollView: {
-    flex: 1,
     paddingHorizontal: 20,
   },
   gpsStatus: {

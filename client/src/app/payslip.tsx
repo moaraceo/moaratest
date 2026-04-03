@@ -1,208 +1,235 @@
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import StaffTabBar from "./components/common/StaffTabBar";
-import { CURRENT_MINIMUM_WAGE } from "./constants/minimumWage";
-import { useAttendance } from "./store/attendanceStore";
-import { useStaff } from "./store/staffStore";
-import { formatMoney, formatMonth } from "./utils/format";
+import { useWorkplace } from "./store/workplaceStore";
 
+// ─────────────────────────────────────────────
+// 뱃지 컴포넌트
+// ─────────────────────────────────────────────
+function Badge({
+  label,
+  color,
+  bg,
+}: {
+  label: string;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <View style={[badgeStyles.wrap, { backgroundColor: bg }]}>
+      <Text style={[badgeStyles.text, { color }]}>{label}</Text>
+    </View>
+  );
+}
+const badgeStyles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    marginLeft: 6,
+  },
+  text: { fontSize: 11, fontWeight: "600" },
+});
+
+// ─────────────────────────────────────────────
+// 화면
+// ─────────────────────────────────────────────
 export default function PayslipScreen() {
-  const [year, setYear] = useState(2025);
-  const [month, setMonth] = useState(3);
-
-  const { staffList } = useStaff();
-  const { getConfirmedRecords } = useAttendance();
-
-  // 현재 로그인한 직원 정보 찾기 (지금은 샘플로 "김민지" 기준)
-  const currentStaff =
-    staffList.find((s) => s.name === "김민지") ?? staffList[0];
-  const wage = currentStaff?.hourlyWage ?? CURRENT_MINIMUM_WAGE;
-
-  // 확정된 근태로 급여 계산
-  const myConfirmed = getConfirmedRecords().filter(
-    (r) => r.staffName === currentStaff?.name,
-  );
-
-  const totalMinutes = myConfirmed.reduce(
-    (sum, r) => sum + (r.actualWorkMinutes || r.workMinutes || 0),
-    0,
-  );
-
-  // 기본급
-  const basicPay = Math.floor((totalMinutes / 60) * wage);
-
-  // 주휴수당
-  const weeklyHours = totalMinutes / 60 / 4;
-  const weeklyAllowance =
-    weeklyHours >= 15 ? Math.floor((weeklyHours / 40) * 8 * wage) : 0;
-
-  // 연장수당 (초과 근무분)
-  const overtimeMinutes = Math.max(0, totalMinutes - 480 * 20);
-  const overtimePay = Math.floor((overtimeMinutes / 60) * wage * 0.5);
-
-  // 야간근로수당 (22:00-06:00, 50% 추가)
-  const nightMinutes = Math.max(0, totalMinutes - 480 * 20); // 간단히 계산
-  const nightPay = Math.floor((nightMinutes / 60) * wage * 0.5);
-
-  // 세전 합계
-  const grossPay = basicPay + weeklyAllowance + overtimePay + nightPay;
-
-  const handleSavePDF = () => {
-    // TODO: Implement PDF save functionality
-    console.log("PDF 저장");
-  };
-
-  const handleShare = () => {
-    // TODO: Implement share functionality
-    console.log("공유하기");
-  };
-
-  const goBack = () => {
-    router.back();
-  };
+  const router = useRouter();
+  const [year, setYear] = useState(2026);
+  const [month, setMonth] = useState(5);
+  const { getCurrentWorkplace } = useWorkplace();
+  const currentWorkplace = getCurrentWorkplace();
 
   const prevMonth = () => {
     if (month === 1) {
       setYear((y) => y - 1);
       setMonth(12);
-    } else {
-      setMonth((m) => m - 1);
-    }
+    } else setMonth((m) => m - 1);
   };
-
   const nextMonth = () => {
     if (month === 12) {
       setYear((y) => y + 1);
       setMonth(1);
-    } else {
-      setMonth((m) => m + 1);
-    }
+    } else setMonth((m) => m + 1);
   };
+
+  // ── 샘플 급여 데이터 ──────────────────────────
+  const totalHours = "42시간 00분";
+  const hourlyWage = 10030;
+
+  const basicPay = 380000;      // 확정
+  const weeklyAllowance = 80240; // 자동계산
+  const overtimePay = 21500;    // 초과근무
+  const confirmedTotal = basicPay + weeklyAllowance + overtimePay; // 481,740
+
+  const pendingPay = 19760;     // 미승인 (5/8)
+  const estimatedTotal = confirmedTotal + pendingPay;  // 501,500
+
+  const prevMonthFinal = 465000; // 전월 (4월) 확정
+  const pendingCount = 1;
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      {/* Fixed Header */}
+      {/* ─── 헤더 ─── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={goBack}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>급여 명세서</Text>
-        <View style={styles.monthNavigator}>
-          <TouchableOpacity style={styles.monthButton} onPress={prevMonth}>
-            <Text style={styles.monthArrow}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.monthText}>{formatMonth(year, month)}</Text>
-          <TouchableOpacity style={styles.monthButton} onPress={nextMonth}>
-            <Text style={styles.monthArrow}>›</Text>
-          </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>내 급여</Text>
+          <Text style={styles.headerSub}>
+            박지수 · {currentWorkplace?.name ?? "OO카페 강남점"}
+          </Text>
         </View>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Scrollable Content */}
+      {/* ─── 월 네비게이터 ─── */}
+      <View style={styles.monthNav}>
+        <TouchableOpacity style={styles.monthArrowBtn} onPress={prevMonth}>
+          <Text style={styles.monthArrow}>‹</Text>
+        </TouchableOpacity>
+        <Text style={styles.monthText}>
+          {year}년 {month}월
+        </Text>
+        <TouchableOpacity style={styles.monthArrowBtn} onPress={nextMonth}>
+          <Text style={styles.monthArrow}>›</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
-        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* Gross Payment Amount Box */}
-        <View style={styles.grossPaymentBox}>
-          <Text style={styles.grossPaymentLabel}>세전 지급 기준액</Text>
-          <Text style={styles.grossPaymentAmount}>{formatMoney(grossPay)}</Text>
-          <Text style={styles.grossPaymentStatus}>원 · 확정 완료</Text>
-        </View>
-
-        {/* Payment Details Card */}
-        <View style={styles.paymentDetailsCard}>
-          <Text style={styles.sectionTitle}>지급 항목 내역</Text>
-
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>기본급</Text>
-            <Text style={styles.paymentAmount}>{formatMoney(basicPay)}</Text>
+        {/* ─── 요약 행 ─── */}
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>이번 달 총 근무</Text>
+            <Text style={styles.summaryValue}>{totalHours}</Text>
           </View>
-          <View style={styles.divider} />
-
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>주휴수당 ✓</Text>
-            <Text style={[styles.paymentAmount, styles.weeklyAllowance]}>
-              {formatMoney(weeklyAllowance)}
-            </Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>연장근로수당</Text>
-            <Text style={styles.paymentAmount}>{formatMoney(overtimePay)}</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>야간근로수당</Text>
-            <Text style={styles.paymentAmount}>{formatMoney(nightPay)}</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={[styles.paymentRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>세전 합계</Text>
-            <Text style={styles.totalAmount}>{formatMoney(grossPay)}</Text>
-          </View>
-        </View>
-
-        {/* Work Summary Card */}
-        <View style={styles.workSummaryCard}>
-          <Text style={styles.sectionTitle}>근무 요약</Text>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>총 근무시간</Text>
-            <Text style={styles.summaryValue}>80h 00m</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>시급</Text>
-            <Text style={styles.summaryValue}>10,047원</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>주휴수당 기준</Text>
-            <Text style={[styles.summaryValue, styles.weeklyCriteria]}>
-              주 15h 이상 ✓
+            <Text style={styles.summaryValue}>
+              {hourlyWage.toLocaleString()}원
             </Text>
           </View>
         </View>
 
-        {/* Legal Disclaimer Box */}
-        <View style={styles.disclaimerBox}>
-          <Text style={styles.disclaimerTitle}>⚠ 참고사항</Text>
-          <Text style={styles.disclaimerText}>
-            본 명세서는 세전 기준이며 실제 수령액과 다를 수 있습니다. 세금 관련
-            문의는 담당 세무사에게 확인하세요.
+        {/* ─── 예상 급여 박스 ─── */}
+        <View style={styles.estimatedBox}>
+          <Text style={styles.estimatedLabel}>예상 급여</Text>
+          <Text style={styles.estimatedAmount}>
+            {estimatedTotal.toLocaleString()}원
           </Text>
         </View>
 
-        {/* Bottom Buttons */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.saveButton} onPress={handleSavePDF}>
-            <Text style={styles.saveButtonText}>📄 PDF 저장</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-            <Text style={styles.shareButtonText}>공유하기</Text>
-          </TouchableOpacity>
+        {/* ─── 미승인 경고 배너 ─── */}
+        {pendingCount > 0 && (
+          <View style={styles.warningBanner}>
+            <Text style={styles.warningText}>
+              {pendingCount}건 미승인 포함 — 대표 승인 후 확정돼요
+            </Text>
+          </View>
+        )}
+
+        {/* ─── 급여 상세 내역 ─── */}
+        <View style={styles.detailCard}>
+          <Text style={styles.detailTitle}>급여 상세 내역</Text>
+
+          {/* 기본급 */}
+          <View style={styles.detailRow}>
+            <View style={styles.detailLabelRow}>
+              <Text style={styles.detailLabel}>기본급</Text>
+              <Badge label="확정" color={colors.success} bg={colors.successDim} />
+            </View>
+            <Text style={styles.detailValue}>
+              {basicPay.toLocaleString()}원
+            </Text>
+          </View>
+          <View style={styles.divider} />
+
+          {/* 주휴수당 */}
+          <View style={styles.detailRow}>
+            <View style={styles.detailLabelRow}>
+              <Text style={styles.detailLabel}>주휴수당</Text>
+              <Badge
+                label="자동계산"
+                color={colors.primary}
+                bg={colors.primaryDim}
+              />
+            </View>
+            <Text style={styles.detailValue}>
+              {weeklyAllowance.toLocaleString()}원
+            </Text>
+          </View>
+          <View style={styles.divider} />
+
+          {/* 연장수당 */}
+          <View style={styles.detailRow}>
+            <View style={styles.detailLabelRow}>
+              <Text style={styles.detailLabel}>연장수당</Text>
+              <Badge label="초과근무" color={colors.warn} bg={colors.warnDim} />
+            </View>
+            <Text style={styles.detailValue}>
+              {overtimePay.toLocaleString()}원
+            </Text>
+          </View>
+
+          {/* 예상 합계 구분선 */}
+          <View style={styles.totalDivider} />
+
+          {/* 예상 합계 */}
+          <View style={styles.detailRow}>
+            <Text style={styles.totalLabel}>예상 합계</Text>
+            <Text style={styles.totalValue}>
+              {confirmedTotal.toLocaleString()}원
+            </Text>
+          </View>
+          <View style={styles.divider} />
+
+          {/* 미승인 근무 */}
+          <View style={styles.detailRow}>
+            <View style={styles.detailLabelRow}>
+              <Text style={styles.detailLabel}>미승인 근무 (5/8)</Text>
+              <Badge label="대기중" color="#92400E" bg="#FEF3C7" />
+            </View>
+            <Text style={styles.pendingValue}>
+              +{pendingPay.toLocaleString()}원
+            </Text>
+          </View>
+          <View style={styles.divider} />
+
+          {/* 전월 확정 급여 */}
+          <View style={[styles.detailRow, { paddingBottom: 4 }]}>
+            <Text style={styles.detailLabel}>
+              전월 ({month === 1 ? 12 : month - 1}월) 확정 급여
+            </Text>
+            <Text style={styles.detailValue}>
+              {prevMonthFinal.toLocaleString()}원
+            </Text>
+          </View>
         </View>
       </ScrollView>
+
       <StaffTabBar activeTab="payslip" />
     </SafeAreaView>
   );
 }
 
+// ─────────────────────────────────────────────
+// 스타일
+// ─────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -210,221 +237,206 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: colors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  backButton: {
-    padding: 4,
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
   },
   backArrow: {
     fontSize: 20,
     color: colors.primary,
     fontWeight: "600",
   },
+  headerCenter: {
+    alignItems: "center",
+  },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "700",
     color: colors.text,
+    marginBottom: 2,
   },
-  headerDate: {
-    fontSize: 13,
-    color: colors.text2,
-    fontFamily: "monospace",
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  grossPaymentBox: {
-    backgroundColor: colors.primaryDim,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 24,
-    ...shadows.card,
-  },
-  grossPaymentLabel: {
-    fontSize: 12,
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  grossPaymentAmount: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: colors.text,
-    fontFamily: "monospace",
-    marginBottom: 4,
-  },
-  grossPaymentStatus: {
+  headerSub: {
     fontSize: 12,
     color: colors.text2,
   },
-  paymentDetailsCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    ...shadows.card,
-  },
-  workSummaryCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    ...shadows.card,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 16,
-  },
-  paymentRow: {
+  // 월 네비게이터
+  monthNav: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
-  },
-  paymentLabel: {
-    fontSize: 13,
-    color: colors.text2,
-  },
-  paymentAmount: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-    fontFamily: "monospace",
-  },
-  weeklyAllowance: {
-    color: colors.success,
-  },
-  totalRow: {
-    paddingTop: 16,
-    borderTopWidth: 2,
-    borderTopColor: colors.border,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.primary,
-  },
-  totalAmount: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.primary,
-    fontFamily: "monospace",
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  summaryLabel: {
-    fontSize: 13,
-    color: colors.text2,
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.text,
-    fontFamily: "monospace",
-  },
-  weeklyCriteria: {
-    color: colors.success,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  disclaimerBox: {
-    backgroundColor: colors.warnDim,
-    borderWidth: 1,
-    borderColor: colors.warn,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  disclaimerTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.warn,
-    marginBottom: 8,
-  },
-  disclaimerText: {
-    fontSize: 11,
-    color: colors.text2,
-    lineHeight: 16,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 40,
-  },
-  saveButton: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    borderRadius: 14,
-    height: 54,
     justifyContent: "center",
-    alignItems: "center",
-  },
-  saveButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.surface,
-  },
-  shareButton: {
-    flex: 1,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    height: 54,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 16,
   },
-  shareButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.text2,
-  },
-  monthNavigator: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  monthButton: {
+  monthArrowBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: colors.border,
     justifyContent: "center",
     alignItems: "center",
   },
   monthArrow: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.text2,
     fontWeight: "600",
+    lineHeight: 22,
   },
   monthText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+    minWidth: 90,
+    textAlign: "center",
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 24,
+  },
+  // 요약 행
+  summaryRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    marginBottom: 14,
+    ...shadows.card,
+  },
+  summaryItem: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: "center",
+    gap: 4,
+  },
+  summaryDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginVertical: 10,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: colors.text2,
+  },
+  summaryValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  // 예상 급여 박스
+  estimatedBox: {
+    backgroundColor: colors.primaryDim,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    ...shadows.card,
+  },
+  estimatedLabel: {
     fontSize: 14,
     fontWeight: "500",
+    color: colors.primary,
+  },
+  estimatedAmount: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  // 경고 배너
+  warningBanner: {
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  warningText: {
+    fontSize: 13,
+    color: "#92400E",
+    fontWeight: "500",
+  },
+  // 급여 상세 카드
+  detailCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 20,
+    paddingVertical: 4,
+    ...shadows.card,
+  },
+  detailTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text2,
+    paddingTop: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: 4,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 13,
+  },
+  detailLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: colors.text2,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: "600",
     color: colors.text,
-    fontFamily: "monospace",
-    minWidth: 60,
-    textAlign: "center",
+  },
+  pendingValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#B45309",
+  },
+  totalDivider: {
+    height: 1.5,
+    backgroundColor: colors.border,
+    marginVertical: 4,
+  },
+  totalLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
   },
 });

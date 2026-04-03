@@ -6,6 +6,7 @@ import React, { useEffect } from "react";
 import "react-native-reanimated";
 import { AttendanceProvider } from "./store/attendanceStore";
 import { StaffProvider } from "./store/staffStore";
+import { WorkplaceProvider } from "./store/workplaceStore";
 
 // 스플래시 화면이 자동으로 숨겨지지 않도록 설정
 SplashScreen.preventAutoHideAsync();
@@ -21,8 +22,9 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AttendanceProvider>
-      <StaffProvider>
+    <WorkplaceProvider>
+      <AttendanceProvider>
+        <StaffProvider>
         <ThemeProvider value={DefaultTheme}>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -38,10 +40,19 @@ export default function RootLayout() {
               name="labor-report"
               options={{ headerShown: false }}
             />
+            <Stack.Screen
+              name="join-workplace"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="work-record-detail"
+              options={{ headerShown: false }}
+            />
           </Stack>
           <StatusBar style="auto" />
         </ThemeProvider>
-      </StaffProvider>
-    </AttendanceProvider>
+        </StaffProvider>
+      </AttendanceProvider>
+    </WorkplaceProvider>
   );
 }

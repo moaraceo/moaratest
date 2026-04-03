@@ -11,8 +11,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import StaffTabBar from "./components/common/StaffTabBar";
+import { useStaff } from "./store/staffStore";
+import { useWorkplace } from "./store/workplaceStore";
 
 export default function ProfileScreen() {
+  const { staffList } = useStaff();
+  const { getStaffWorkplaces, currentWorkplaceId, setCurrentWorkplace } =
+    useWorkplace();
+
+  const currentStaff =
+    staffList.find((s) => s.name === "김민지") ?? staffList[0];
+  const myWorkplaces = getStaffWorkplaces(currentStaff?.workplaceIds ?? []);
+
   const handleEdit = () => {
     Alert.alert("편집", "프로필 편집 기능은 준비 중입니다.");
   };
@@ -27,10 +37,6 @@ export default function ProfileScreen() {
         },
       },
     ]);
-  };
-
-  const handleAddWorkplace = () => {
-    Alert.alert("사업장 추가", "다른 사업장 추가 기능은 준비 중입니다.");
   };
 
   return (
@@ -49,15 +55,50 @@ export default function ProfileScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Card */}
+        {/* Profile Card - compact */}
         <View style={styles.profileCard}>
-          <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>김</Text>
+          <View style={styles.profileTopRow}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>김</Text>
+            </View>
+            <View style={styles.profileNameCol}>
+              <Text style={styles.profileName}>김민지</Text>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>직원</Text>
+              </View>
+            </View>
           </View>
-          <Text style={styles.profileName}>김민지</Text>
-          <Text style={styles.profileWorkplace}>카페 A 매장</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>직원</Text>
+
+          {/* 사업장 목록 - 이름 바로 아래 */}
+          <View style={styles.workplaceList}>
+            {myWorkplaces.map((wp) => (
+              <TouchableOpacity
+                key={wp.id}
+                style={[
+                  styles.workplaceRow,
+                  wp.id === currentWorkplaceId && styles.workplaceRowActive,
+                ]}
+                onPress={() => setCurrentWorkplace(wp.id)}
+              >
+                <Text
+                  style={[
+                    styles.workplaceName,
+                    wp.id === currentWorkplaceId && styles.workplaceNameActive,
+                  ]}
+                >
+                  {wp.name}
+                </Text>
+                {wp.id === currentWorkplaceId && (
+                  <Text style={styles.workplaceCheck}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.addWorkplaceRow}
+              onPress={() => router.push("/join-workplace")}
+            >
+              <Text style={styles.addWorkplaceText}>+ 다른 사업장 추가</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -111,24 +152,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Workplace Card */}
-        <View style={styles.workplaceCard}>
-          <TouchableOpacity style={styles.workplaceItem}>
-            <View style={styles.workplaceInfo}>
-              <Text style={styles.workplaceName}>카페 A 매장</Text>
-              <Text style={styles.workplaceAddress}>서울시 강남구</Text>
-            </View>
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.addWorkplaceButton}
-            onPress={handleAddWorkplace}
-          >
-            <Text style={styles.addWorkplaceText}>+ 다른 사업장 추가</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>로그아웃</Text>
@@ -170,53 +193,99 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   scrollView: {
-    flex: 1,
     paddingHorizontal: 20,
   },
   profileCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 24,
-    marginTop: 20,
-    marginBottom: 20,
-    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginTop: 16,
+    marginBottom: 16,
     ...shadows.card,
   },
-  profileAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
+  profileTopRow: {
+    flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
   },
+  profileAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
   profileAvatarText: {
     color: colors.surface,
-    fontSize: 32,
+    fontSize: 22,
     fontWeight: "600",
+  },
+  profileNameCol: {
+    flex: 1,
+    gap: 6,
   },
   profileName: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     color: colors.text,
-    marginBottom: 4,
-  },
-  profileWorkplace: {
-    fontSize: 14,
-    color: colors.text2,
-    marginBottom: 12,
   },
   roleBadge: {
+    alignSelf: "flex-start",
     backgroundColor: colors.primaryDim,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   roleBadgeText: {
     color: colors.primary,
     fontSize: 12,
     fontWeight: "600",
+  },
+  // 사업장 목록 (프로필 카드 내부)
+  workplaceList: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 12,
+    gap: 4,
+  },
+  workplaceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: colors.bg,
+  },
+  workplaceRowActive: {
+    backgroundColor: colors.primaryDim,
+  },
+  workplaceName: {
+    fontSize: 14,
+    color: colors.text2,
+    fontWeight: "500",
+  },
+  workplaceNameActive: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  workplaceCheck: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  addWorkplaceRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "flex-start",
+  },
+  addWorkplaceText: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: "500",
   },
   workInfoCard: {
     backgroundColor: colors.surface,
@@ -228,15 +297,6 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   monthlyStatusCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    ...shadows.card,
-  },
-  workplaceCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -274,38 +334,6 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: colors.border,
-  },
-  workplaceItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  workplaceInfo: {
-    flex: 1,
-  },
-  workplaceName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 4,
-  },
-  workplaceAddress: {
-    fontSize: 12,
-    color: colors.text2,
-  },
-  arrow: {
-    fontSize: 20,
-    color: colors.text2,
-  },
-  addWorkplaceButton: {
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  addWorkplaceText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "500",
   },
   logoutButton: {
     alignItems: "center",
