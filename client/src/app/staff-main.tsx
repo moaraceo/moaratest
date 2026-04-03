@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
@@ -144,7 +144,7 @@ export default function StaffMainScreen() {
       setShowClockOutModal(true);
     } else {
       // 출근 처리
-      clockIn("김민지", "김");
+      clockIn("김민지", "김", "workplace-1");
       showMessageTemporarily("출근이 기록됐어요 ✓");
     }
   };
