@@ -16,9 +16,9 @@ export default function RoleSelectScreen() {
 
     // Navigate to appropriate dashboard based on role
     if (role === "owner") {
-      router.push("/owner-dashboard");
+      router.replace("/owner-dashboard");
     } else if (role === "employee") {
-      router.push("/staff-main");
+      router.replace("/staff-main");
     }
   };
 

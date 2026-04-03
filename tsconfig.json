@@ -4,10 +4,13 @@
     "strict": true,
     "module": "ESNext",
     "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "composite": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./client/src/*", "./*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "server/node_modules"]
 }

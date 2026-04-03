@@ -5,10 +5,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../../constants/theme";
 
 type StaffTabBarProps = {
-  activeTab: "history" | "payslip" | "workplace" | "profile";
+  activeTab: "workplace" | "history" | "payslip" | "profile";
 };
 
+// 탭 순서: 사업장 → 기록 → 급여 → 설정
 const TABS = [
+  {
+    key: "workplace",
+    label: "사업장",
+    icon: require("../../../../assets/icons/tab-home.png"),
+    route: "/staff-main", // 사업장 탭 = 직원 홈(staff-main)
+  },
   {
     key: "history",
     label: "기록",
@@ -20,12 +27,6 @@ const TABS = [
     label: "급여",
     icon: require("../../../../assets/icons/tab-payslip.png"),
     route: "/payslip",
-  },
-  {
-    key: "workplace",
-    label: "사업장",
-    icon: require("../../../../assets/icons/tab-home.png"),
-    route: "/join-workplace",
   },
   {
     key: "profile",
@@ -46,7 +47,7 @@ export default function StaffTabBar({ activeTab }: StaffTabBarProps) {
           <TouchableOpacity
             key={tab.key}
             style={styles.tabItem}
-            onPress={() => router.push(tab.route as any)}
+            onPress={() => router.replace(tab.route as any)}
             activeOpacity={0.7}
           >
             <Image

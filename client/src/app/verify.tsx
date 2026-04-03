@@ -54,7 +54,7 @@ export default function VerifyScreen() {
       // TODO: Implement verification logic
       console.log("인증번호 확인:", code);
       // Navigate to role selection screen
-      router.push("/role-select");
+      router.replace("/role-select");
     } else {
       console.log("6자리 모두 입력해주세요");
     }

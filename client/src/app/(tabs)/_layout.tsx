@@ -1,28 +1,10 @@
-import { Tabs } from "expo-router";
+import { Stack } from "expo-router";
 import React from "react";
 
-import { colors } from "../../constants/theme";
-
-export default function TabLayout() {
+export default function AuthLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        headerShown: false,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: "Explore",
-        }}
-      />
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+    </Stack>
   );
 }

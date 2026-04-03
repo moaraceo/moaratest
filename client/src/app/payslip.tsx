@@ -46,7 +46,7 @@ const badgeStyles = StyleSheet.create({
 export default function PayslipScreen() {
   const router = useRouter();
   const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(5);
+  const [month, setMonth] = useState(3);
   const { getCurrentWorkplace } = useWorkplace();
   const currentWorkplace = getCurrentWorkplace();
 
@@ -67,15 +67,15 @@ export default function PayslipScreen() {
   const totalHours = "42시간 00분";
   const hourlyWage = 10030;
 
-  const basicPay = 380000;      // 확정
+  const basicPay = 380000; // 확정
   const weeklyAllowance = 80240; // 자동계산
-  const overtimePay = 21500;    // 초과근무
+  const overtimePay = 21500; // 초과근무
   const confirmedTotal = basicPay + weeklyAllowance + overtimePay; // 481,740
 
-  const pendingPay = 19760;     // 미승인 (5/8)
-  const estimatedTotal = confirmedTotal + pendingPay;  // 501,500
+  const pendingPay = 19760; // 미승인 (3/8)
+  const estimatedTotal = confirmedTotal + pendingPay; // 501,500
 
-  const prevMonthFinal = 465000; // 전월 (4월) 확정
+  const prevMonthFinal = 465000; // 전월 (2월) 확정
   const pendingCount = 1;
 
   return (
@@ -151,7 +151,11 @@ export default function PayslipScreen() {
           <View style={styles.detailRow}>
             <View style={styles.detailLabelRow}>
               <Text style={styles.detailLabel}>기본급</Text>
-              <Badge label="확정" color={colors.success} bg={colors.successDim} />
+              <Badge
+                label="확정"
+                color={colors.success}
+                bg={colors.successDim}
+              />
             </View>
             <Text style={styles.detailValue}>
               {basicPay.toLocaleString()}원
@@ -201,7 +205,7 @@ export default function PayslipScreen() {
           {/* 미승인 근무 */}
           <View style={styles.detailRow}>
             <View style={styles.detailLabelRow}>
-              <Text style={styles.detailLabel}>미승인 근무 (5/8)</Text>
+              <Text style={styles.detailLabel}>미승인 근무 (3/8)</Text>
               <Badge label="대기중" color="#92400E" bg="#FEF3C7" />
             </View>
             <Text style={styles.pendingValue}>

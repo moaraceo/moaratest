@@ -17,12 +17,12 @@ import { useWorkplace } from "./store/workplaceStore";
 // ─────────────────────────────────────────────
 type WorkRecord = {
   id: string;
-  fullDate: string;      // "2026.05.08"
-  displayDate: string;   // "5/8"
-  day: string;           // "(금)"
+  fullDate: string; // "2026.05.08"
+  displayDate: string; // "5/8"
+  day: string; // "(금)"
   clockIn: string;
   clockOut: string;
-  workMinutes: number;   // clock-out minus clock-in (휴게 포함)
+  workMinutes: number; // clock-out minus clock-in (휴게 포함)
   breakMinutes: number;
   actualMinutes: number; // workMinutes - breakMinutes
   amount: number;
@@ -40,13 +40,13 @@ function fmtMin(min: number): string {
 }
 
 // ─────────────────────────────────────────────
-// 샘플 데이터 (2026년 5월)
+// 샘플 데이터 (2026년 3월)
 // ─────────────────────────────────────────────
 const SAMPLE_RECORDS: WorkRecord[] = [
   {
     id: "r1",
-    fullDate: "2026.05.08",
-    displayDate: "5/8",
+    fullDate: "2026.03.08",
+    displayDate: "3/8",
     day: "(금)",
     clockIn: "10:02",
     clockOut: "16:15",
@@ -58,8 +58,8 @@ const SAMPLE_RECORDS: WorkRecord[] = [
   },
   {
     id: "r2",
-    fullDate: "2026.05.07",
-    displayDate: "5/7",
+    fullDate: "2026.03.07",
+    displayDate: "3/7",
     day: "(목)",
     clockIn: "09:58",
     clockOut: "16:00",
@@ -68,14 +68,14 @@ const SAMPLE_RECORDS: WorkRecord[] = [
     actualMinutes: 332,
     amount: 60300,
     status: "CONFIRMED",
-    approvedAt: "2026.05.07 17:12",
+    approvedAt: "2026.03.07 17:12",
     approvedBy: "대표 (홍길동)",
     memo: "홀 담당 근무",
   },
   {
     id: "r3",
-    fullDate: "2026.05.06",
-    displayDate: "5/6",
+    fullDate: "2026.03.06",
+    displayDate: "3/6",
     day: "(수)",
     clockIn: "10:00",
     clockOut: "16:00",
@@ -84,14 +84,14 @@ const SAMPLE_RECORDS: WorkRecord[] = [
     actualMinutes: 330,
     amount: 60180,
     status: "CONFIRMED",
-    approvedAt: "2026.05.06 18:05",
+    approvedAt: "2026.03.06 18:05",
     approvedBy: "대표 (홍길동)",
     memo: "",
   },
   {
     id: "r4",
-    fullDate: "2026.05.05",
-    displayDate: "5/5",
+    fullDate: "2026.03.05",
+    displayDate: "3/5",
     day: "(화)",
     clockIn: "09:55",
     clockOut: "14:30",
@@ -100,14 +100,14 @@ const SAMPLE_RECORDS: WorkRecord[] = [
     actualMinutes: 275,
     amount: 45970,
     status: "CONFIRMED",
-    approvedAt: "2026.05.05 15:10",
+    approvedAt: "2026.03.05 15:10",
     approvedBy: "대표 (홍길동)",
     memo: "단축 근무",
   },
   {
     id: "r5",
-    fullDate: "2026.05.03",
-    displayDate: "5/3",
+    fullDate: "2026.03.03",
+    displayDate: "3/3",
     day: "(일)",
     clockIn: "10:00",
     clockOut: "18:00",
@@ -116,7 +116,7 @@ const SAMPLE_RECORDS: WorkRecord[] = [
     actualMinutes: 420,
     amount: 70210,
     status: "CONFIRMED",
-    approvedAt: "2026.05.03 19:00",
+    approvedAt: "2026.03.03 19:00",
     approvedBy: "대표 (홍길동)",
     memo: "",
   },
@@ -128,7 +128,7 @@ const SAMPLE_RECORDS: WorkRecord[] = [
 export default function WorkHistoryScreen() {
   const router = useRouter();
   const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(5);
+  const [month, setMonth] = useState(3);
   const { getCurrentWorkplace } = useWorkplace();
   const currentWorkplace = getCurrentWorkplace();
 
@@ -146,9 +146,16 @@ export default function WorkHistoryScreen() {
   };
 
   // 요약 계산 (실제 데이터 기반)
-  const totalActualMin = SAMPLE_RECORDS.reduce((s, r) => s + r.actualMinutes, 0);
-  const confirmedDays = SAMPLE_RECORDS.filter((r) => r.status === "CONFIRMED").length;
-  const pendingDays = SAMPLE_RECORDS.filter((r) => r.status === "PENDING").length;
+  const totalActualMin = SAMPLE_RECORDS.reduce(
+    (s, r) => s + r.actualMinutes,
+    0,
+  );
+  const confirmedDays = SAMPLE_RECORDS.filter(
+    (r) => r.status === "CONFIRMED",
+  ).length;
+  const pendingDays = SAMPLE_RECORDS.filter(
+    (r) => r.status === "PENDING",
+  ).length;
 
   const handleRecordPress = (record: WorkRecord) => {
     router.push({
@@ -175,10 +182,16 @@ export default function WorkHistoryScreen() {
   return (
     <View style={styles.container}>
       {/* SafeArea: 상단만 (탭바가 하단 처리) */}
-      <SafeAreaView edges={["top", "left", "right"]} style={styles.headerWrapper}>
+      <SafeAreaView
+        edges={["top", "left", "right"]}
+        style={styles.headerWrapper}
+      >
         {/* 헤더 */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+          >
             <Text style={styles.backArrow}>←</Text>
           </TouchableOpacity>
           <View style={styles.headerCenter}>
@@ -233,10 +246,7 @@ export default function WorkHistoryScreen() {
           return (
             <TouchableOpacity
               key={record.id}
-              style={[
-                styles.recordCard,
-                isPending && styles.recordCardPending,
-              ]}
+              style={[styles.recordCard, isPending && styles.recordCardPending]}
               onPress={() => handleRecordPress(record)}
               activeOpacity={0.75}
             >
@@ -251,7 +261,9 @@ export default function WorkHistoryScreen() {
                 <Text
                   style={[
                     styles.timeRange,
-                    isPending ? styles.timeRangePending : styles.timeRangeConfirmed,
+                    isPending
+                      ? styles.timeRangePending
+                      : styles.timeRangeConfirmed,
                   ]}
                 >
                   {record.clockIn} – {record.clockOut}

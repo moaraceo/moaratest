@@ -1,15 +1,15 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { borderRadius, colors, shadows, spacing } from "../../constants/theme";
 
@@ -20,7 +20,7 @@ export default function HomeScreen() {
     // TODO: Implement verification code logic
     console.log("인증번호 받기:", phoneNumber);
     // Navigate to verification screen
-    router.push("/verify");
+    router.replace("/verify");
   };
 
   return (
