@@ -16,6 +16,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import { useAuth, type AuthUser } from "./store/authStore";
 
+type Role = "owner" | "staff";
+
 const API_URL = process.env["EXPO_PUBLIC_API_URL"] ?? "";
 
 const TERMS = [
@@ -25,8 +27,10 @@ const TERMS = [
 ] as const;
 
 export default function VerifyScreen() {
-  const { phoneNumber, devCode } = useLocalSearchParams<{ phoneNumber: string; devCode?: string }>();
-  const { login } = useAuth();
+  const { phoneNumber, devCode, role } = useLocalSearchParams<{ phoneNumber: string; devCode?: string; role?: string }>();
+  const selectedRole: Role = role === "staff" ? "staff" : "owner";
+  const { login, setRole } = useAuth();
+  const tokenRef = useRef<string | null>(null);
   const [verificationCode, setVerificationCode] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(300);
   const [verifying, setVerifying] = useState(false);
@@ -118,6 +122,7 @@ export default function VerifyScreen() {
 
     const { user, tokens } = body.data;
     await login(user, tokens);
+    tokenRef.current = tokens.accessToken;
 
     const isNewUser = !user.name || user.name === user.phone;
     if (isNewUser) {
@@ -136,9 +141,25 @@ export default function VerifyScreen() {
     setAgreed(next);
   };
 
-  const handleTermsConfirm = () => {
+  const handleTermsConfirm = async () => {
     setShowTermsModal(false);
-    router.replace({ pathname: "/register", params: { phoneNumber } });
+    const token = tokenRef.current;
+
+    if (selectedRole === "owner") {
+      // 사장님: role 설정 후 사업장 등록 화면으로
+      if (token) {
+        const res = await fetch(`${API_URL}/auth/role`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ role: "owner" }),
+        }).catch(() => null);
+        if (res?.ok) setRole("owner");
+      }
+      router.replace("/register-workplace");
+    } else {
+      // 직원: 기본 정보 입력 화면으로
+      router.replace({ pathname: "/register", params: { phoneNumber, role: "staff" } });
+    }
   };
 
   return (

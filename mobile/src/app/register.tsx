@@ -4,6 +4,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,24 +13,27 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "./store/authStore";
+import { colors, shadows, borderRadius, spacing } from "../constants/theme";
 
 const API_URL = process.env["EXPO_PUBLIC_API_URL"] ?? "";
-import { colors, shadows } from "../constants/theme";
 
 export default function RegisterScreen() {
-  const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
-  const { user, accessToken, updateUser } = useAuth();
+  const { phoneNumber, role } = useLocalSearchParams<{ phoneNumber: string; role?: string }>();
+  const { user, accessToken, updateUser, setRole } = useAuth();
+
   const [name, setName] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [connectCode, setConnectCode] = useState("");
   const [nameError, setNameError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       setNameError("이름을 입력해주세요");
       return;
     }
-    if (trimmed.length < 2) {
+    if (trimmedName.length < 2) {
       setNameError("이름은 2자 이상 입력해주세요");
       return;
     }
@@ -41,23 +45,41 @@ export default function RegisterScreen() {
     }
 
     setLoading(true);
-    const res = await fetch(`${API_URL}/auth/profile`, {
+
+    // 이름 저장
+    const profileRes = await fetch(`${API_URL}/auth/profile`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ name: trimmed }),
+      body: JSON.stringify({
+        name: trimmedName,
+        ...(birthDate.trim() ? { birthDate: birthDate.trim() } : {}),
+      }),
     }).catch(() => null);
+
+    // role 설정 (직원)
+    const roleRes = await fetch(`${API_URL}/auth/role`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ role: "staff" }),
+    }).catch(() => null);
+
     setLoading(false);
 
-    if (!res?.ok) {
-      Alert.alert("오류", "이름 저장에 실패했습니다. 다시 시도해주세요.");
+    if (!profileRes?.ok) {
+      Alert.alert("오류", "정보 저장에 실패했습니다. 다시 시도해주세요.");
       return;
     }
 
-    updateUser({ name: trimmed });
-    router.replace("/role-select");
+    updateUser({ name: trimmedName });
+    if (roleRes?.ok) setRole("staff");
+
+    router.replace("/staff-main");
   };
 
   return (
@@ -66,22 +88,32 @@ export default function RegisterScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
       >
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 헤더 */}
           <View style={styles.headerSection}>
-            <Text style={styles.title}>사용자 등록</Text>
+            <View style={styles.iconCircle}>
+              <Text style={styles.iconText}>👤</Text>
+            </View>
+            <Text style={styles.title}>기본 정보 입력</Text>
             <Text style={styles.subtitle}>
-              입력하신 이름은 근로계약서·급여명세서에 사용돼요
+              처음 로그인하셨군요!{"\n"}기본 정보를 등록해 주세요.
             </Text>
-            {phoneNumber ? (
-              <Text style={styles.phoneHint}>가입 번호: {phoneNumber}</Text>
-            ) : null}
           </View>
 
+          {/* 이름 (필수) */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>이름 (실명)</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>이름</Text>
+              <Text style={styles.required}> *</Text>
+            </View>
             <TextInput
               style={[styles.input, nameError ? styles.inputError : null]}
-              placeholder="실명을 입력해주세요"
+              placeholder="홍길동"
               placeholderTextColor={colors.text3}
               value={name}
               onChangeText={(v) => { setName(v); setNameError(""); }}
@@ -90,19 +122,58 @@ export default function RegisterScreen() {
             />
             {nameError ? (
               <Text style={styles.errorText}>{nameError}</Text>
-            ) : (
-              <Text style={styles.fieldHint}>근로계약서·급여명세서에 표시되는 이름이에요</Text>
-            )}
+            ) : null}
           </View>
 
+          {/* 생년월일 (선택) */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>생년월일</Text>
+              <Text style={styles.optional}> (선택)</Text>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.text3}
+              value={birthDate}
+              onChangeText={setBirthDate}
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
+            />
+          </View>
+
+          {/* 사업장 연결 코드 (선택) */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>사업장 연결 코드</Text>
+              <Text style={styles.optional}> (선택)</Text>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="010-0000-0000"
+              placeholderTextColor={colors.text3}
+              value={connectCode}
+              onChangeText={setConnectCode}
+              keyboardType="phone-pad"
+              maxLength={11}
+            />
+            <Text style={styles.fieldHint}>
+              사장님 전화번호로 입력하세요. 사업장과 연결됩니다.
+            </Text>
+          </View>
+
+          {/* 등록 완료 버튼 */}
           <TouchableOpacity
             style={[styles.submitBtn, loading && { opacity: 0.6 }]}
             onPress={handleSubmit}
             disabled={loading}
+            activeOpacity={0.85}
           >
-            <Text style={styles.submitBtnText}>{loading ? "처리 중..." : "다음"}</Text>
+            <Text style={styles.submitBtnText}>
+              {loading ? "처리 중..." : "등록 완료"}
+            </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -111,38 +182,104 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: 40,
+  },
 
-  headerSection: { marginBottom: 48 },
-  title: { fontSize: 26, fontWeight: "700", color: colors.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: colors.text2, lineHeight: 20 },
-  phoneHint: { fontSize: 13, color: colors.text3, marginTop: 6 },
+  // 헤더
+  headerSection: {
+    alignItems: "center",
+    marginBottom: spacing.xl,
+  },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primaryDim,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  iconText: {
+    fontSize: 28,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: colors.text2,
+    textAlign: "center",
+    lineHeight: 22,
+  },
 
-  fieldGroup: { marginBottom: 32 },
-  label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: 8 },
-  fieldHint: { fontSize: 12, color: colors.text3, marginTop: 6 },
-
+  // 필드
+  fieldGroup: {
+    marginBottom: spacing.lg,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  required: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.danger,
+  },
+  optional: {
+    fontSize: 13,
+    color: colors.text3,
+  },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
     color: colors.text,
     ...shadows.card,
   },
-  inputError: { borderColor: colors.danger },
-  errorText: { fontSize: 12, color: colors.danger, marginTop: 6 },
+  inputError: {
+    borderColor: colors.danger,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.danger,
+    marginTop: 6,
+  },
+  fieldHint: {
+    fontSize: 12,
+    color: colors.text3,
+    marginTop: 6,
+    lineHeight: 18,
+  },
 
+  // 버튼
   submitBtn: {
     height: 54,
-    borderRadius: 14,
+    borderRadius: borderRadius.lg,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
+    marginTop: spacing.sm,
     ...shadows.button,
   },
-  submitBtnText: { fontSize: 17, fontWeight: "700", color: "#fff" },
+  submitBtnText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
+  },
 });
