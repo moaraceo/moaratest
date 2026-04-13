@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
     SafeAreaView,
     ScrollView,
@@ -16,6 +16,7 @@ import { useAttendance } from "./store/attendanceStore";
 export default function ApprovalScreen() {
   const router = useRouter();
   const { getPendingRecords } = useAttendance();
+  const [selectedPeriod, setSelectedPeriod] = useState<"today" | "week" | "month">("today");
 
   const pendingItems = getPendingRecords();
 
@@ -37,9 +38,24 @@ export default function ApprovalScreen() {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>근태 승인</Text>
-        <View style={styles.notificationBadge}>
-          <Text style={styles.notificationText}>{pendingItems.length}건</Text>
-        </View>
+        <TouchableOpacity style={styles.approveAllButton}>
+          <Text style={styles.approveAllText}>✓ 전체 승인</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Period Filter Tabs */}
+      <View style={styles.periodTabs}>
+        {(["today", "week", "month"] as const).map((period) => (
+          <TouchableOpacity
+            key={period}
+            style={[styles.periodTab, selectedPeriod === period && styles.periodTabActive]}
+            onPress={() => setSelectedPeriod(period)}
+          >
+            <Text style={[styles.periodTabText, selectedPeriod === period && styles.periodTabTextActive]}>
+              {period === "today" ? "오늘" : period === "week" ? "이번 주" : "이번 달"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Scrollable Content */}
@@ -190,15 +206,42 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
-  notificationBadge: {
-    backgroundColor: colors.danger,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  approveAllButton: {
+    backgroundColor: colors.success,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
   },
-  notificationText: {
+  approveAllText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  periodTabs: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  periodTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: colors.bg,
+  },
+  periodTabActive: {
+    backgroundColor: colors.primary,
+  },
+  periodTabText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: colors.text2,
+  },
+  periodTabTextActive: {
+    color: "#FFFFFF",
     fontWeight: "600",
   },
   scrollView: {

@@ -85,30 +85,29 @@ export default function OwnerDashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── 4개 통계 카드 ── */}
-        <View style={styles.statsGrid}>
-          {/* 출근 완료 → 근태승인 화면 */}
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: palette.white }]}
-            onPress={() => router.push("/approval")}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.statLabel}>출근 완료</Text>
-            <Text style={styles.statValue}>{stats.checkInDone}명</Text>
-          </TouchableOpacity>
-
-          {/* 이번 달 인건비 → 급여정산 화면 */}
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: palette.mint }]}
-            onPress={() => router.push("/payroll")}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.statLabel}>이번 달 인건비</Text>
-            <Text style={[styles.statValue, { fontSize: 18, color: "#059669" }]}>
-              {stats.laborCost}원
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── 히어로 카드 ── */}
+        <TouchableOpacity
+          style={styles.heroCard}
+          onPress={() => router.push("/payroll")}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.heroLabel}>이번 달 인건비</Text>
+          <Text style={styles.heroAmount}>{stats.laborCost}원</Text>
+          <View style={styles.heroChips}>
+            <TouchableOpacity
+              style={styles.heroChip}
+              onPress={(e) => { e.stopPropagation(); router.push("/approval"); }}
+            >
+              <Text style={styles.heroChipText}>출근완료 {stats.checkInDone}명</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.heroChip, styles.heroChipWarn]}
+              onPress={(e) => { e.stopPropagation(); router.push("/approval"); }}
+            >
+              <Text style={[styles.heroChipText, styles.heroChipWarnText]}>미승인 {stats.pendingCount}건</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
 
         {/* ── AI 알림 ── */}
         <View style={[styles.aiCard, { backgroundColor: "#FFF0F0", borderColor: "#FECACA" }]}>
@@ -251,7 +250,7 @@ export default function OwnerDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: "#F5F7FA" },
+  container:  { flex: 1, backgroundColor: "#EEF2F8" },
   scroll:     { flex: 1, paddingHorizontal: 16 },
 
   // 헤더
@@ -273,21 +272,26 @@ const styles = StyleSheet.create({
   },
   pendingBadgeText: { fontSize: 13, fontWeight: "600", color: "#A16207" },
 
-  // 통계 그리드
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+  // 히어로 카드
+  heroCard: {
+    backgroundColor: "#3F7FF5",
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 14,
+    ...shadows.button,
   },
-  statCard: {
-    width: "47.5%",
-    borderRadius: 14,
-    padding: 16,
-    ...shadows.card,
+  heroLabel: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 6 },
+  heroAmount: { fontSize: 30, fontWeight: "800", color: "#FFFFFF", marginBottom: 14 },
+  heroChips: { flexDirection: "row", gap: 8 },
+  heroChip: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
-  statLabel: { fontSize: 12, color: "#64748B", marginBottom: 8 },
-  statValue: { fontSize: 22, fontWeight: "700", color: "#1E293B" },
+  heroChipWarn: { backgroundColor: "rgba(254,243,199,0.35)" },
+  heroChipText: { fontSize: 12, fontWeight: "600", color: "#FFFFFF" },
+  heroChipWarnText: { color: "#FEF9C3" },
 
   // AI 알림
   aiCard: {
@@ -313,12 +317,12 @@ const styles = StyleSheet.create({
   // 처리할 일 섹션
   section: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     marginBottom: 14,
     ...shadows.card,
   },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#1E293B", marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#1A2540", marginBottom: 12 },
   taskRow:  { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
   taskDot:  { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   taskLabel:{ flex: 1, fontSize: 14, color: "#1E293B", fontWeight: "500" },

@@ -50,9 +50,9 @@ skills-lock.json
 
 # Secrets
 backend/.env
-admin/.env.local
+apps/admin/.env.local
 
 # Build artifacts
 .next/
-admin/.next/
+apps/admin/.next/
 backend/dist/

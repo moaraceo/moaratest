@@ -144,46 +144,57 @@ export default function HomeScreen() {
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.content}>
-          <Image
-            source={require("../../../assets/images/react-logo.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.logoText}>소상공인 근태·급여 관리 서비스</Text>
-
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.phoneInput}
-              placeholder="휴대폰 번호를 입력하세요"
-              placeholderTextColor="#8B92A3"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-              maxLength={11}
+          {/* Floating card */}
+          <View style={styles.card}>
+            <Image
+              source={require("../../../assets/images/logo.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
             />
+            <Text style={styles.logoText}>소상공인 근태·급여 관리 서비스</Text>
+
+            {/* Google 로그인 */}
+            <TouchableOpacity
+              style={[styles.googleButton, googleLoading && { opacity: 0.6 }]}
+              onPress={handleGoogleLogin}
+              disabled={googleLoading}
+            >
+              <Text style={styles.googleButtonText}>
+                {googleLoading ? "로그인 중..." : "Google로 로그인"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* 구분선 */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>또는 SMS 로그인</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* 전화번호 입력 */}
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="휴대폰 번호를 입력하세요"
+                placeholderTextColor="#8B92A3"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                maxLength={11}
+              />
+            </View>
+
+            {/* 인증번호 받기 */}
+            <TouchableOpacity
+              style={[styles.button, loading && { opacity: 0.6 }]}
+              onPress={handleGetVerificationCode}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? "발송 중..." : "인증번호 받기"}
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={[styles.button, loading && { opacity: 0.6 }]}
-            onPress={handleGetVerificationCode}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? "발송 중..." : "인증번호 받기"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.googleButton, googleLoading && { opacity: 0.6 }]}
-            onPress={handleGoogleLogin}
-            disabled={googleLoading}
-          >
-            <Text style={styles.googleButtonText}>
-              {googleLoading ? "로그인 중..." : "Google로 로그인"}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
 
           <View style={styles.linksContainer}>
             <TouchableOpacity
@@ -199,12 +210,6 @@ export default function HomeScreen() {
             >
               <Text style={styles.linkText}>이메일 로그인</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              소상공인 근태·급여 관리 서비스
-            </Text>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -225,40 +230,45 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
   },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.card,
+  },
   logoImage: {
-    width: 220,
-    height: 90,
+    width: 160,
+    height: 64,
     resizeMode: "contain",
     alignSelf: "center",
     marginBottom: spacing.sm,
-    marginTop: spacing.xxl,
   },
   logoText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: colors.text,
+    fontSize: 13,
+    color: colors.text2,
     textAlign: "center",
-    marginBottom: spacing.sm,
+    marginBottom: spacing.lg,
   },
   inputContainer: {
     width: "100%",
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   phoneInput: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     fontSize: 16,
     color: colors.text,
-    ...shadows.card,
   },
   button: {
     backgroundColor: colors.primary,
     borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
     alignItems: "center",
     ...shadows.button,
   },
@@ -267,19 +277,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  footer: {
+  dividerRow: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing.lg,
+    marginVertical: spacing.md,
+    gap: 10,
   },
-  footerText: {
-    fontSize: 14,
-    color: colors.text2,
-    textAlign: "center",
-  },
-  divider: {
+  dividerLine: {
+    flex: 1,
     height: 1,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 20,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontSize: 12,
+    color: colors.text2,
+    fontWeight: "500",
   },
   linksContainer: {
     flexDirection: "row",
@@ -291,11 +303,11 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 13,
-    color: "#6B7280",
+    color: colors.text2,
   },
   linkSeparator: {
     fontSize: 13,
-    color: "#D1D5DB",
+    color: colors.border,
     marginHorizontal: 12,
   },
   googleButton: {
@@ -307,8 +319,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
-    marginTop: spacing.sm,
-    ...shadows.card,
   },
   googleButtonText: {
     fontSize: 15,

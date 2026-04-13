@@ -223,7 +223,12 @@ export default function StaffManageScreen() {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>직원 관리</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          style={styles.inviteButton}
+          onPress={() => setMainTab("invite")}
+        >
+          <Text style={styles.inviteButtonText}>+ 초대</Text>
+        </TouchableOpacity>
       </View>
 
       {/* 메인 탭: 직원 목록 | 초대 코드 */}
@@ -625,6 +630,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  inviteButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    ...shadows.button,
+  },
+  inviteButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
   backArrow: {
     fontSize: 18,
     color: colors.primary,
@@ -641,22 +658,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   filterTab: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "transparent",
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   activeFilterTab: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterTabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
+    color: colors.text2,
   },
   activeFilterTabText: {
-    color: colors.surface,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   scrollView: {
     flex: 1,
@@ -667,10 +691,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 6,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
     flexDirection: "row",
     alignItems: "flex-start",
     ...shadows.card,
@@ -680,17 +704,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
+    marginRight: 12,
   },
   avatarText: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
     color: colors.surface,
   },
   staffInfo: {
@@ -721,13 +745,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   statusBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
   },
   statusText: {
-    fontSize: 10,
-    fontWeight: "500",
+    fontSize: 11,
+    fontWeight: "600",
   },
   staffHistory: {
     marginTop: 4,
