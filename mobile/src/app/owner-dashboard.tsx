@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import { colors, shadows } from "../constants/theme";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import OwnerTabBar from "./components/common/OwnerTabBar";
 import { CURRENT_MINIMUM_WAGE } from "./constants/minimumWage";
+import { useAuth } from "./store/authStore";
 import { useStaff } from "./store/staffStore";
 import { formatMoney } from "./utils/format";
 
@@ -37,7 +39,22 @@ const statusConfig: Record<string, { bg: string; dot: string; label: string; ico
 
 export default function OwnerDashboardScreen() {
   const [isLoading, setIsLoading] = useState(true);
+  const { signOut } = useAuth();
   const { getUnderWageStaff } = useStaff();
+
+  const handleSignOut = () => {
+    Alert.alert("로그아웃", "로그아웃 하시겠어요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "로그아웃",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
+          router.replace("/(tabs)");
+        },
+      },
+    ]);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 500);
@@ -82,6 +99,9 @@ export default function OwnerDashboardScreen() {
             onPress={() => router.push("/approval")}
           >
             <Text style={styles.pendingBadgeText}>미승인 {stats.pendingCount}건</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
+            <Text style={styles.signOutText}>로그아웃</Text>
           </TouchableOpacity>
         </View>
 
@@ -389,4 +409,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDim,
   },
   addWorkplaceBtnText: { fontSize: 14, fontWeight: "600", color: colors.primary },
+  signOutBtn: { marginLeft: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  signOutText: { fontSize: 12, color: colors.text2 },
 });

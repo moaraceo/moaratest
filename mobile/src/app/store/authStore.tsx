@@ -31,6 +31,9 @@ type AuthContextType = {
 const AUTH_USER_KEY = "moara_auth_user";
 const AUTH_ACCESS_KEY = "moara_access_token";
 const AUTH_REFRESH_KEY = "moara_refresh_token";
+// 세션 버전 — 이 값이 바뀌면 기존 저장된 세션을 무효화하고 로그인 화면으로 이동
+const AUTH_SESSION_VERSION_KEY = "moara_auth_session_version";
+const CURRENT_SESSION_VERSION = "2";
 
 async function secureGet(key: string): Promise<string | null> {
   if (Platform.OS === "web") return sessionStorage.getItem(key);
@@ -70,6 +73,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           secureGet(AUTH_USER_KEY),
           secureGet(AUTH_ACCESS_KEY),
         ]);
+
+        // 세션 버전 확인 — 버전이 다르면 기존 세션 무효화
+        const storedVersion = await secureGet(AUTH_SESSION_VERSION_KEY);
+        if (storedVersion !== CURRENT_SESSION_VERSION) {
+          await clearAuth();
+          await secureSet(AUTH_SESSION_VERSION_KEY, CURRENT_SESSION_VERSION);
+          return;
+        }
 
         if (storedUser && storedToken) {
           // JWT exp 확인 (서명 미검증 — 서버가 검증함)
@@ -147,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       secureSet(AUTH_USER_KEY, JSON.stringify(newUser)),
       secureSet(AUTH_ACCESS_KEY, tokens.accessToken),
       secureSet(AUTH_REFRESH_KEY, tokens.refreshToken),
+      secureSet(AUTH_SESSION_VERSION_KEY, CURRENT_SESSION_VERSION),
     ]);
     setUser(newUser);
     setAccessToken(tokens.accessToken);
