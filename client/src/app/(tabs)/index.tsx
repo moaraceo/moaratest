@@ -144,47 +144,67 @@ export default function HomeScreen() {
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.content}>
-          <Image
-            source={require("../../../assets/images/react-logo.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.logoText}>소상공인 근태·급여 관리 서비스</Text>
+          {/* 로그인 카드 */}
+          <View style={styles.card}>
+            {/* MOARA 로고 */}
+            <View style={styles.logoArea}>
+              <View style={styles.logoIconWrap}>
+                <Image
+                  source={require("../../../assets/images/logo.png")}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.logoSubtitle}>프리랜서 급여 관리</Text>
+            </View>
 
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.phoneInput}
-              placeholder="휴대폰 번호를 입력하세요"
-              placeholderTextColor="#8B92A3"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-              maxLength={11}
-            />
+            {/* Google 로그인 */}
+            <TouchableOpacity
+              style={[styles.googleButton, googleLoading && { opacity: 0.6 }]}
+              onPress={handleGoogleLogin}
+              disabled={googleLoading}
+            >
+              <Text style={styles.googleIcon}>G</Text>
+              <Text style={styles.googleButtonText}>
+                {googleLoading ? "로그인 중..." : "Google로 로그인"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* 구분선 */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>또는 SMS 로그인</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* SMS 로그인 섹션 */}
+            <Text style={styles.smsTitle}>전화번호로 로그인</Text>
+            <Text style={styles.smsSubtitle}>등록된 번호로 인증번호를 보내드려요</Text>
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="010-0000-0000"
+                placeholderTextColor={colors.text3}
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                maxLength={11}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.button, loading && { opacity: 0.6 }]}
+              onPress={handleGetVerificationCode}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? "발송 중..." : "인증번호 받기"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && { opacity: 0.6 }]}
-            onPress={handleGetVerificationCode}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? "발송 중..." : "인증번호 받기"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.googleButton, googleLoading && { opacity: 0.6 }]}
-            onPress={handleGoogleLogin}
-            disabled={googleLoading}
-          >
-            <Text style={styles.googleButtonText}>
-              {googleLoading ? "로그인 중..." : "Google로 로그인"}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
+          {/* 카드 하단 링크 */}
           <View style={styles.linksContainer}>
             <TouchableOpacity
               style={styles.linkButton}
@@ -199,12 +219,6 @@ export default function HomeScreen() {
             >
               <Text style={styles.linkText}>이메일 로그인</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              소상공인 근태·급여 관리 서비스
-            </Text>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -225,78 +239,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
   },
-  logoImage: {
-    width: 220,
-    height: 90,
-    resizeMode: "contain",
-    alignSelf: "center",
-    marginBottom: spacing.sm,
-    marginTop: spacing.xxl,
-  },
-  logoText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: colors.text,
-    textAlign: "center",
-    marginBottom: spacing.sm,
-  },
-  inputContainer: {
-    width: "100%",
-    marginBottom: spacing.lg,
-  },
-  phoneInput: {
+  card: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: 16,
-    color: colors.text,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 28,
     ...shadows.card,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+  logoArea: {
     alignItems: "center",
-    ...shadows.button,
+    marginBottom: 24,
   },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+  logoIconWrap: {
+    marginBottom: 4,
   },
-  footer: {
-    alignItems: "center",
-    paddingVertical: spacing.lg,
+  logoImage: {
+    width: 180,
+    height: 52,
+    resizeMode: "contain",
   },
-  footerText: {
-    fontSize: 14,
+  logoSubtitle: {
+    fontSize: 13,
     color: colors.text2,
-    textAlign: "center",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 20,
-  },
-  linksContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  linkButton: {
-    paddingVertical: 8,
-  },
-  linkText: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  linkSeparator: {
-    fontSize: 13,
-    color: "#D1D5DB",
-    marginHorizontal: 12,
+    marginTop: 4,
   },
   googleButton: {
     flexDirection: "row",
@@ -305,14 +274,88 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    marginTop: spacing.sm,
-    ...shadows.card,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 16,
+    gap: 8,
+  },
+  googleIcon: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#4285F4",
   },
   googleButtonText: {
     fontSize: 15,
     fontWeight: "600",
     color: colors.text,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontSize: 12,
+    color: colors.text3,
+  },
+  smsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 4,
+  },
+  smsSubtitle: {
+    fontSize: 13,
+    color: colors.text2,
+    marginBottom: 16,
+  },
+  inputContainer: {
+    marginBottom: 14,
+  },
+  phoneInput: {
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: colors.text,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: "center",
+    ...shadows.button,
+  },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  linksContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  linkButton: {
+    paddingVertical: 8,
+  },
+  linkText: {
+    fontSize: 13,
+    color: colors.text2,
+  },
+  linkSeparator: {
+    fontSize: 13,
+    color: colors.border,
+    marginHorizontal: 12,
   },
 });

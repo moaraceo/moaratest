@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
@@ -85,30 +86,29 @@ export default function OwnerDashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── 4개 통계 카드 ── */}
-        <View style={styles.statsGrid}>
-          {/* 출근 완료 → 근태승인 화면 */}
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: palette.white }]}
-            onPress={() => router.push("/approval")}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.statLabel}>출근 완료</Text>
-            <Text style={styles.statValue}>{stats.checkInDone}명</Text>
-          </TouchableOpacity>
-
-          {/* 이번 달 인건비 → 급여정산 화면 */}
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: palette.mint }]}
-            onPress={() => router.push("/payroll")}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.statLabel}>이번 달 인건비</Text>
-            <Text style={[styles.statValue, { fontSize: 18, color: "#059669" }]}>
-              {stats.laborCost}원
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── 히어로 카드 (이번 달 인건비) ── */}
+        <TouchableOpacity
+          style={styles.heroCard}
+          onPress={() => router.push("/payroll")}
+          activeOpacity={0.88}
+        >
+          <Text style={styles.heroLabel}>이번 달 인건비</Text>
+          <Text style={styles.heroAmount}>{stats.laborCost}원</Text>
+          <View style={styles.heroChipRow}>
+            <TouchableOpacity
+              style={styles.heroChip}
+              onPress={(e) => { e.stopPropagation(); router.push("/approval"); }}
+            >
+              <Text style={styles.heroChipText}>출근 완료 {stats.checkInDone}명</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.heroChip, styles.heroChipLight]}
+              onPress={(e) => { e.stopPropagation(); router.push("/approval"); }}
+            >
+              <Text style={[styles.heroChipText, styles.heroChipLightText]}>미승인 {stats.pendingCount}건</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
 
         {/* ── AI 알림 ── */}
         <View style={[styles.aiCard, { backgroundColor: "#FFF0F0", borderColor: "#FECACA" }]}>
@@ -251,7 +251,7 @@ export default function OwnerDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: "#F5F7FA" },
+  container:  { flex: 1, backgroundColor: colors.bg },
   scroll:     { flex: 1, paddingHorizontal: 16 },
 
   // 헤더
@@ -261,8 +261,8 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
   },
-  storeName:  { fontSize: 20, fontWeight: "700", color: "#1E293B" },
-  dateText:   { fontSize: 13, color: "#64748B", marginTop: 2 },
+  storeName:  { fontSize: 20, fontWeight: "700", color: colors.text },
+  dateText:   { fontSize: 13, color: colors.text2, marginTop: 2 },
   pendingBadge: {
     backgroundColor: "#FEF9C3",
     borderRadius: 20,
@@ -273,21 +273,33 @@ const styles = StyleSheet.create({
   },
   pendingBadgeText: { fontSize: 13, fontWeight: "600", color: "#A16207" },
 
-  // 통계 그리드
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+  // 히어로 카드
+  heroCard: {
+    borderRadius: 20,
+    paddingHorizontal: 22,
+    paddingVertical: 22,
     marginBottom: 14,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  } as ViewStyle,
+  heroLabel: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 6 },
+  heroAmount: { fontSize: 30, fontWeight: "800", color: "#FFFFFF", marginBottom: 14 },
+  heroChipRow: { flexDirection: "row", gap: 8 },
+  heroChip: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
-  statCard: {
-    width: "47.5%",
-    borderRadius: 14,
-    padding: 16,
-    ...shadows.card,
+  heroChipLight: {
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
-  statLabel: { fontSize: 12, color: "#64748B", marginBottom: 8 },
-  statValue: { fontSize: 22, fontWeight: "700", color: "#1E293B" },
+  heroChipText: { fontSize: 12, fontWeight: "600", color: "#FFFFFF" },
+  heroChipLightText: { color: "rgba(255,255,255,0.85)" },
 
   // AI 알림
   aiCard: {
@@ -310,18 +322,18 @@ const styles = StyleSheet.create({
   aiBadgeText: { fontSize: 11, fontWeight: "700", color: "#FFFFFF" },
   aiText:      { flex: 1, fontSize: 13, color: "#7F1D1D", lineHeight: 20 },
 
-  // 처리할 일 섹션
+  // 섹션 카드
   section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 14,
     ...shadows.card,
   },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#1E293B", marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 12 },
   taskRow:  { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
-  taskDot:  { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  taskLabel:{ flex: 1, fontSize: 14, color: "#1E293B", fontWeight: "500" },
+  taskDot:  { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
+  taskLabel:{ flex: 1, fontSize: 14, color: colors.text, fontWeight: "500" },
   taskBtn:  {
     borderWidth: 1,
     borderColor: "#EF4444",
@@ -330,7 +342,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   taskBtnText: { fontSize: 12, fontWeight: "600", color: "#EF4444" },
-  divider:  { height: 1, backgroundColor: "#F1F5F9" },
+  divider:  { height: 1, backgroundColor: colors.bg },
 
   // 직원 빠른 보기 그리드
   quickGrid: {
@@ -340,7 +352,7 @@ const styles = StyleSheet.create({
   },
   quickCard: {
     width: "47.5%",
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     ...shadows.card,
   },
@@ -353,7 +365,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   quickAvatarText:  { fontSize: 16, fontWeight: "700" },
-  quickName:        { fontSize: 14, fontWeight: "600", color: "#1E293B", marginBottom: 4 },
+  quickName:        { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: 4 },
   quickStatusRow:   { flexDirection: "row", alignItems: "center" },
   quickStatusIcon:  { fontSize: 10 },
   quickStatusText:  { fontSize: 12, fontWeight: "500" },
@@ -362,23 +374,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: colors.border,
     ...shadows.card,
   },
-  workplaceSettingsBtnText: { fontSize: 14, fontWeight: "600", color: "#1E293B" },
-  workplaceSettingsArrow:   { fontSize: 20, color: "#94A3B8", fontWeight: "600" },
+  workplaceSettingsBtnText: { fontSize: 14, fontWeight: "600", color: colors.text },
+  workplaceSettingsArrow:   { fontSize: 20, color: colors.text3, fontWeight: "400" },
 
   addWorkplaceBtn: {
     borderWidth: 1.5,
     borderColor: colors.primary,
     borderStyle: "dashed",
-    borderRadius: 14,
+    borderRadius: 16,
     paddingVertical: 14,
     alignItems: "center",
     marginBottom: 14,

@@ -223,7 +223,12 @@ export default function StaffManageScreen() {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>직원 관리</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          style={styles.inviteHeaderBtn}
+          onPress={() => setMainTab("invite")}
+        >
+          <Text style={styles.inviteHeaderBtnText}>+ 초대</Text>
+        </TouchableOpacity>
       </View>
 
       {/* 메인 탭: 직원 목록 | 초대 코드 */}
@@ -611,66 +616,80 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surface,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.bg,
     justifyContent: "center",
     alignItems: "center",
   },
   backArrow: {
     fontSize: 18,
-    color: colors.primary,
-    fontWeight: "600",
+    color: colors.text,
+    fontWeight: "500",
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     color: colors.text,
+  },
+  inviteHeaderBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  inviteHeaderBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   filterTabs: {
     flexDirection: "row",
     backgroundColor: colors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   filterTab: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "transparent",
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   activeFilterTab: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterTabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
+    color: colors.text2,
   },
   activeFilterTabText: {
-    color: colors.surface,
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
   staffCard: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 6,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
     flexDirection: "row",
     alignItems: "flex-start",
     ...shadows.card,
@@ -680,18 +699,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.primaryDim,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
+    marginRight: 12,
   },
   avatarText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.surface,
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.primary,
   },
   staffInfo: {
     flex: 1,
@@ -699,12 +718,12 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 2,
+    gap: 8,
+    marginBottom: 4,
   },
   staffName: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: colors.text,
   },
   staffPosition: {
@@ -713,7 +732,7 @@ const styles = StyleSheet.create({
   },
   staffPositionDot: {
     fontSize: 12,
-    color: colors.text2,
+    color: colors.text3,
   },
   staffWage: {
     fontSize: 12,
@@ -721,36 +740,38 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   statusBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "500",
-  },
-  staffHistory: {
-    marginTop: 4,
-    paddingLeft: 38,
-  },
-  historyText: {
-    fontSize: 10,
-    color: colors.text2,
-    lineHeight: 14,
-  },
-  rejoinButton: {
-    backgroundColor: colors.success,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 4,
-    marginLeft: 38,
+    borderRadius: 20,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  staffHistory: {
+    marginTop: 6,
+    paddingLeft: 54,
+  },
+  historyText: {
+    fontSize: 11,
+    color: colors.text2,
+    lineHeight: 16,
+  },
+  rejoinButton: {
+    backgroundColor: colors.successDim,
+    borderWidth: 1,
+    borderColor: colors.success,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginTop: 6,
+    marginLeft: 54,
     alignSelf: "flex-start",
   },
   rejoinButtonText: {
     fontSize: 11,
-    fontWeight: "500",
-    color: colors.surface,
+    fontWeight: "600",
+    color: colors.success,
   },
   modalOverlay: {
     flex: 1,
@@ -877,17 +898,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDim,
     borderWidth: 1,
     borderColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 20,
-    marginVertical: 12,
-    ...shadows.card,
+    borderRadius: 14,
+    padding: 14,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    marginTop: 8,
   },
   minimumWageTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: colors.primary,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   minimumWageSubtitle: {
     fontSize: 12,
@@ -954,9 +975,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   arrowBtn: {
-    padding: 12,
+    paddingLeft: 8,
     justifyContent: "center",
     alignItems: "center",
+    alignSelf: "center",
   },
   arrowButton: {
     padding: 8,
@@ -965,8 +987,8 @@ const styles = StyleSheet.create({
   },
   arrowText: {
     fontSize: 22,
-    color: colors.primary,
-    fontWeight: "600",
+    color: colors.text3,
+    fontWeight: "400",
   },
 
   // ── 메인 탭 (직원 목록 | 초대 코드)
@@ -978,7 +1000,7 @@ const styles = StyleSheet.create({
   },
   mainTab: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 13,
     alignItems: "center",
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
@@ -987,7 +1009,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.primary,
   },
   mainTabText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "500",
     color: colors.text2,
   },

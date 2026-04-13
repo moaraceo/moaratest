@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
     SafeAreaView,
     ScrollView,
@@ -13,9 +13,12 @@ import EmptyState from "./components/common/EmptyState";
 import OwnerTabBar from "./components/common/OwnerTabBar";
 import { useAttendance } from "./store/attendanceStore";
 
+type FilterTab = "today" | "week" | "month";
+
 export default function ApprovalScreen() {
   const router = useRouter();
   const { getPendingRecords } = useAttendance();
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("today");
 
   const pendingItems = getPendingRecords();
 
@@ -29,6 +32,12 @@ export default function ApprovalScreen() {
     return `${hours}h ${mins.toString().padStart(2, "0")}m`;
   };
 
+  const filterTabs: { key: FilterTab; label: string }[] = [
+    { key: "today", label: "오늘" },
+    { key: "week", label: "이번주" },
+    { key: "month", label: "이번달" },
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Fixed Header */}
@@ -36,10 +45,29 @@ export default function ApprovalScreen() {
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>근태 승인</Text>
-        <View style={styles.notificationBadge}>
-          <Text style={styles.notificationText}>{pendingItems.length}건</Text>
-        </View>
+        <Text style={styles.headerTitle}>작업 승인</Text>
+        {pendingItems.length > 0 ? (
+          <TouchableOpacity style={styles.allApproveBtn}>
+            <Text style={styles.allApproveBtnText}>✓ 전체 승인</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 80 }} />
+        )}
+      </View>
+
+      {/* 필터 탭 */}
+      <View style={styles.filterTabRow}>
+        {filterTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.filterTab, activeFilter === tab.key && styles.filterTabActive]}
+            onPress={() => setActiveFilter(tab.key)}
+          >
+            <Text style={[styles.filterTabText, activeFilter === tab.key && styles.filterTabTextActive]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Scrollable Content */}
@@ -47,20 +75,15 @@ export default function ApprovalScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        {/* Warning Box */}
-        <View style={styles.warningBox}>
-          <Text style={styles.warningText}>
-            ⚠ 미승인 {pendingItems.length}건 — 급여 확정 전 처리 필요
-          </Text>
-        </View>
-
         {/* Pending Approval List */}
         {pendingItems.length === 0 ? (
-          <EmptyState
-            icon="✅"
-            title="모든 근태가 승인됐어요"
-            subtitle="미승인 근태가 없어요"
-          />
+          <View style={styles.emptyCard}>
+            <EmptyState
+              icon="✅"
+              title="모두 처리됐어요"
+              subtitle="대기중인 작업이 없습니다"
+            />
+          </View>
         ) : (
           pendingItems.map((item) => (
             <TouchableOpacity
@@ -91,7 +114,7 @@ export default function ApprovalScreen() {
                 {item.clockIn && (
                   <>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>출근:</Text>
+                      <Text style={styles.infoLabel}>출근</Text>
                       <Text style={styles.infoValue}>{item.clockIn}</Text>
                     </View>
                     <View style={styles.divider} />
@@ -101,7 +124,7 @@ export default function ApprovalScreen() {
                 {item.clockOut ? (
                   <>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>퇴근:</Text>
+                      <Text style={styles.infoLabel}>퇴근</Text>
                       <Text style={styles.infoValue}>{item.clockOut}</Text>
                     </View>
                     <View style={styles.divider} />
@@ -109,8 +132,8 @@ export default function ApprovalScreen() {
                 ) : (
                   <>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>퇴근:</Text>
-                      <Text style={styles.infoValue}>(미기록)</Text>
+                      <Text style={styles.infoLabel}>퇴근</Text>
+                      <Text style={[styles.infoValue, { color: colors.danger }]}>(미기록)</Text>
                     </View>
                     <View style={styles.divider} />
                   </>
@@ -119,7 +142,7 @@ export default function ApprovalScreen() {
                 {item.workMinutes > 0 && (
                   <>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>근무시간:</Text>
+                      <Text style={styles.infoLabel}>근무시간</Text>
                       <Text style={styles.workHours}>
                         {formatWorkTime(item.workMinutes)}
                       </Text>
@@ -131,7 +154,7 @@ export default function ApprovalScreen() {
                 {item.modifyRequest && (
                   <>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>수정요청:</Text>
+                      <Text style={styles.infoLabel}>수정요청</Text>
                       <Text style={styles.infoValue}>
                         <Text style={styles.originalTime}>
                           {item.modifyRequest.originalClockOut}
@@ -144,7 +167,7 @@ export default function ApprovalScreen() {
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>수정 사유:</Text>
+                      <Text style={styles.infoLabel}>수정 사유</Text>
                       <Text style={styles.reasonText}>
                         {item.modifyRequest.reason}
                       </Text>
@@ -155,6 +178,7 @@ export default function ApprovalScreen() {
             </TouchableOpacity>
           ))
         )}
+        <View style={{ height: 20 }} />
       </ScrollView>
 
       <OwnerTabBar activeTab="approval" />
@@ -173,61 +197,87 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surface,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   backButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.bg,
+    justifyContent: "center",
+    alignItems: "center",
   },
   backArrow: {
-    fontSize: 20,
-    color: colors.primary,
-    fontWeight: "600",
+    fontSize: 18,
+    color: colors.text,
+    fontWeight: "500",
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     color: colors.text,
   },
-  notificationBadge: {
-    backgroundColor: colors.danger,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  allApproveBtn: {
+    backgroundColor: colors.success,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
-  notificationText: {
+  allApproveBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
     color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
+  },
+  filterTabRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterTabActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: colors.text2,
+  },
+  filterTabTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
-  warningBox: {
-    backgroundColor: colors.warnDim,
-    borderWidth: 1,
-    borderColor: colors.warn,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
-    marginBottom: 20,
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    marginTop: 8,
     ...shadows.card,
-  },
-  warningText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.warn,
-    textAlign: "center",
+    overflow: "hidden",
   },
   approvalCard: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 18,
+    marginBottom: 12,
     ...shadows.card,
+    overflow: "hidden",
   },
   cardHeader: {
     flexDirection: "row",
@@ -235,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.bg,
   },
   cardHeaderLeft: {
     flexDirection: "row",
@@ -245,22 +295,22 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryDim,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
   avatarText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: "700",
   },
   cardHeaderInfo: {
     flex: 1,
   },
   employeeName: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: colors.text,
     marginBottom: 2,
   },
@@ -270,35 +320,35 @@ const styles = StyleSheet.create({
   },
   reviewBadge: {
     backgroundColor: colors.warnDim,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
   },
   reviewBadgeText: {
-    fontSize: 10,
-    fontWeight: "500",
+    fontSize: 11,
+    fontWeight: "600",
     color: colors.warn,
   },
   cardContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   infoLabel: {
     fontSize: 13,
     color: colors.text2,
-    width: 120,
   },
   infoValue: {
     fontSize: 14,
     color: colors.text,
     fontWeight: "500",
-    flex: 1,
-    textAlign: "right",
   },
   originalTime: {
     textDecorationLine: "line-through",
@@ -321,7 +371,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 8,
+    backgroundColor: colors.bg,
   },
 });
