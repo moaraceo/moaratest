@@ -8,7 +8,7 @@
     "composite": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./client/src/*", "./*"]
+      "@/*": ["./mobile/src/*", "./*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],

@@ -11,12 +11,33 @@ import {
 import { colors, shadows } from "../constants/theme";
 import EmptyState from "./components/common/EmptyState";
 import OwnerTabBar from "./components/common/OwnerTabBar";
+import Toast from "./components/common/Toast";
 import { useAttendance } from "./store/attendanceStore";
 
 export default function ApprovalScreen() {
   const router = useRouter();
-  const { getPendingRecords } = useAttendance();
+  const { getPendingRecords, approveAllRecords } = useAttendance();
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "week" | "month">("today");
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "warning") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const handleApproveAll = () => {
+    const pending = getPendingRecords();
+    if (pending.length === 0) {
+      showToast("승인할 항목이 없습니다", "warning");
+      return;
+    }
+    try {
+      const count = approveAllRecords();
+      showToast(`${count}건이 일괄 승인되었습니다`, "success");
+    } catch {
+      showToast("승인 처리 중 오류가 발생했습니다", "error");
+    }
+  };
 
   const pendingItems = getPendingRecords();
 
@@ -38,7 +59,7 @@ export default function ApprovalScreen() {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>근태 승인</Text>
-        <TouchableOpacity style={styles.approveAllButton}>
+        <TouchableOpacity style={styles.approveAllButton} onPress={handleApproveAll}>
           <Text style={styles.approveAllText}>✓ 전체 승인</Text>
         </TouchableOpacity>
       </View>
@@ -174,6 +195,7 @@ export default function ApprovalScreen() {
       </ScrollView>
 
       <OwnerTabBar activeTab="approval" />
+      {toast && <Toast message={toast.message} type={toast.type} />}
     </SafeAreaView>
   );
 }

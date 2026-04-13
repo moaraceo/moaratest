@@ -49,6 +49,7 @@ interface AttendanceContextType {
   /** 특정 사업장의 기록만 필터 */
   getRecordsByWorkplace: (workplaceId: string) => AttendanceRecord[];
   approveRecord: (recordId: string) => void;
+  approveAllRecords: () => number;
   rejectRecord: (recordId: string) => void;
   clearAllData: () => Promise<void>;
   getPendingRecords: () => AttendanceRecord[];
@@ -273,6 +274,20 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  // 전체 근태 일괄 승인 (PENDING → CONFIRMED)
+  const approveAllRecords = (): number => {
+    const pendingIds = records
+      .filter((r) => r.status === "PENDING")
+      .map((r) => r.id);
+    if (pendingIds.length === 0) return 0;
+    setRecords((prev) =>
+      prev.map((record) =>
+        record.status === "PENDING" ? { ...record, status: "CONFIRMED" } : record,
+      ),
+    );
+    return pendingIds.length;
+  };
+
   // 근태 반려
   const rejectRecord = (recordId: string) => {
     setRecords((prev) =>
@@ -322,6 +337,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     clockOut,
     clockOutWithBreak,
     approveRecord,
+    approveAllRecords,
     rejectRecord,
     clearAllData,
     getPendingRecords,

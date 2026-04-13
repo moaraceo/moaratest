@@ -185,7 +185,7 @@ export default function AdminDashboard() {
       {/* 헤더 */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Moara Admin</Text>
+          <Text style={styles.headerTitle}>모아라 관리자</Text>
           <Text style={styles.headerSub}>프리랜서 노동 데이터 플랫폼</Text>
         </View>
         <TouchableOpacity

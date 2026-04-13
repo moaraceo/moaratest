@@ -15,7 +15,7 @@ app.use(cors({
     if (!origin || origin === 'null') return cb(null, true)
     const allowed = [
       'http://localhost:8081',
-      'http://localhost:3001',
+      'http://localhost:3000',
       'exp://localhost:8081',
     ]
     cb(null, allowed.includes(origin))

@@ -4,7 +4,7 @@
     "slug": "moara",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "client/assets/images/icon.png",
+    "icon": "mobile/assets/images/icon.png",
     "scheme": "moara-test",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -13,28 +13,28 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "client/assets/images/android-icon-foreground.png",
-        "backgroundImage": "client/assets/images/android-icon-background.png",
-        "monochromeImage": "client/assets/images/android-icon-monochrome.png"
+        "foregroundImage": "mobile/assets/images/android-icon-foreground.png",
+        "backgroundImage": "mobile/assets/images/android-icon-background.png",
+        "monochromeImage": "mobile/assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "client/assets/images/favicon.png"
+      "favicon": "mobile/assets/images/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
       [
         "expo-router",
         {
-          "root": "./client/src/app"
+          "root": "./mobile/src/app"
         }
       ],
       [
         "expo-splash-screen",
         {
-          "image": "client/assets/images/splash-icon.png",
+          "image": "mobile/assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
