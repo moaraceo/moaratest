@@ -17,15 +17,13 @@ function generateCode(): string {
   return String(Math.floor(Math.random() * 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0')
 }
 
-function issueTokens(userId: string, phone: string, role: string) {
-  const accessToken = jwt.sign(
-    { sub: userId, phone, role },
-    config.jwt.accessSecret,
+function issueTokens(userId: string, phone: string | null, role: string, email?: string) {
+  const payload: Record<string, unknown> = { sub: userId, phone: phone ?? null, role }
+  if (email) payload['email'] = email
+  const accessToken = jwt.sign(payload, config.jwt.accessSecret,
     { expiresIn: config.jwt.accessExpires as jwt.SignOptions['expiresIn'] }
   )
-  const refreshToken = jwt.sign(
-    { sub: userId, phone, role },
-    config.jwt.refreshSecret,
+  const refreshToken = jwt.sign(payload, config.jwt.refreshSecret,
     { expiresIn: config.jwt.refreshExpires as jwt.SignOptions['expiresIn'] }
   )
   return { accessToken, refreshToken }
@@ -147,6 +145,66 @@ router.post('/refresh', async (req, res) => {
   }
 })
 
+// ─── POST /auth/google — Google OAuth 인증 ─────────────────
+router.post('/google', async (req, res) => {
+  const { accessToken } = req.body as { accessToken?: string }
+
+  if (!accessToken) {
+    res.status(400).json({ ok: false, error: { message: 'accessToken이 필요합니다.' } })
+    return
+  }
+
+  // Supabase로 토큰 검증
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken)
+  if (error || !user) {
+    res.status(401).json({ ok: false, error: { message: '유효하지 않은 구글 토큰입니다.' } })
+    return
+  }
+
+  const email = user.email ?? ''
+  const name = (user.user_metadata?.['full_name'] as string | undefined)
+    ?? (user.user_metadata?.['name'] as string | undefined)
+    ?? email.split('@')[0]
+    ?? 'Google 사용자'
+
+  // 신규: INSERT, 기존: DO NOTHING (role 보존)
+  await supabaseAdmin
+    .from('users')
+    .upsert(
+      { id: user.id, name },
+      { onConflict: 'id', ignoreDuplicates: true }
+    )
+
+  // 최신 사용자 데이터 조회
+  const { data: dbUser, error: fetchErr } = await supabaseAdmin
+    .from('users')
+    .select()
+    .eq('id', user.id)
+    .single()
+
+  if (fetchErr || !dbUser) {
+    console.error('Google 사용자 조회 실패:', fetchErr)
+    res.status(500).json({ ok: false, error: { message: '사용자 정보 저장에 실패했습니다.' } })
+    return
+  }
+
+  const tokens = issueTokens(dbUser.id, dbUser.phone ?? null, dbUser.role ?? '', email)
+
+  res.json({
+    ok: true,
+    data: {
+      user: {
+        id: dbUser.id,
+        phone: dbUser.phone ?? null,
+        email,
+        name: dbUser.name ?? name,
+        role: dbUser.role,
+      },
+      tokens,
+    },
+  })
+})
+
 // ─── PATCH /auth/role — 역할 설정 (인증 후) ────────────────
 router.patch('/role', authenticateJwt, async (req: AuthRequest, res) => {
   const { role } = req.body as { role?: string }
@@ -170,7 +228,7 @@ router.patch('/role', authenticateJwt, async (req: AuthRequest, res) => {
     return
   }
 
-  const tokens = issueTokens(data.id, data.phone, data.role)
+  const tokens = issueTokens(data.id, data.phone ?? null, data.role)
 
   res.json({ ok: true, data: { user: data, tokens } })
 })

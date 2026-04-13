@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
+import { useAuth } from "./store/authStore";
 import { IndustryCode, useWorkplace } from "./store/workplaceStore";
 
 // ─────────────────────────────────────────────
@@ -36,6 +37,9 @@ const INDUSTRY_OPTIONS: { code: IndustryCode; label: string }[] = [
 // ─────────────────────────────────────────────
 
 export default function RegisterWorkplaceScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isAdditional = mode === "add";
+  const { user } = useAuth();
   const { addWorkplace, setCurrentWorkplace } = useWorkplace();
 
   const [name, setName] = useState("");
@@ -82,11 +86,10 @@ export default function RegisterWorkplaceScreen() {
       // GPS 실패 시 null로 등록 (역지오코딩은 서버에서 처리)
     }
 
-    // TODO: ownerId를 실제 로그인 사용자 ID로 교체
     const newWP = addWorkplace(
       name.trim(),
       address.trim(),
-      "owner-1",
+      user?.id ?? "owner-1",
       selectedIndustry!,
       gpsLat,
       gpsLng,
@@ -94,7 +97,11 @@ export default function RegisterWorkplaceScreen() {
     setCurrentWorkplace(newWP.id);
 
     setIsSubmitting(false);
-    router.replace("/owner-dashboard");
+    if (isAdditional) {
+      router.back();
+    } else {
+      router.replace("/owner-dashboard");
+    }
   };
 
   return (
@@ -111,9 +118,14 @@ export default function RegisterWorkplaceScreen() {
         >
           {/* 헤더 */}
           <View style={styles.headerSection}>
-            <Text style={styles.title}>사업장 등록</Text>
+            {isAdditional && (
+              <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <Text style={styles.backBtnText}>← 돌아가기</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.title}>{isAdditional ? "사업장 추가" : "사업장 등록"}</Text>
             <Text style={styles.subtitle}>
-              업종 정보는 서비스 개선에 활용돼요
+              {isAdditional ? "새 사업장을 등록해 동시에 관리하세요" : "업종 정보는 서비스 개선에 활용돼요"}
             </Text>
           </View>
 
@@ -277,4 +289,7 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: 17, fontWeight: "700", color: "#fff" },
+
+  backBtn: { marginBottom: 12 },
+  backBtnText: { fontSize: 14, color: colors.primary, fontWeight: "500" },
 });

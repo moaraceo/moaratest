@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   StyleSheet,
@@ -10,21 +10,26 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
+import { useAuth } from "./store/authStore";
 import { useStaff } from "./store/staffStore";
 import { useWorkplace } from "./store/workplaceStore";
 
 export default function JoinWorkplaceScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isAdditional = mode === "add";
+
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
+  const { user } = useAuth();
   const { joinByInviteCode, setCurrentWorkplace } = useWorkplace();
   const { staffList, addStaffToWorkplace } = useStaff();
 
-  // 현재 로그인한 직원 (샘플: "김민지")
+  // 현재 로그인한 직원 (ID 또는 이름으로 매핑)
   const currentStaff =
-    staffList.find((s) => s.name === "김민지") ?? staffList[0];
+    staffList.find((s) => s.id === user?.id) ?? staffList[0];
 
   const handleSubmit = async () => {
     setError("");
@@ -63,7 +68,7 @@ export default function JoinWorkplaceScreen() {
           </Text>
           <TouchableOpacity
             style={styles.confirmButton}
-            onPress={() => router.replace("/staff-main")}
+            onPress={() => isAdditional ? router.back() : router.replace("/staff-main")}
           >
             <Text style={styles.confirmButtonText}>확인</Text>
           </TouchableOpacity>
@@ -82,7 +87,7 @@ export default function JoinWorkplaceScreen() {
         >
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>사업장 참여</Text>
+        <Text style={styles.headerTitle}>{isAdditional ? "사업장 추가" : "사업장 참여"}</Text>
         <View style={{ width: 40 }} />
       </View>
 

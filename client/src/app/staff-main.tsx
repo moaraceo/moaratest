@@ -546,6 +546,13 @@ export default function StaffMainScreen() {
             >
               <Text style={styles.historyBtnText}>근무이력 보기</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.addWorkplaceBtn}
+              onPress={() => router.push("/join-workplace?mode=add")}
+            >
+              <Text style={styles.addWorkplaceBtnText}>＋ 다른 사업장 참여</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -958,5 +965,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: "700",
+  },
+
+  addWorkplaceBtn: {
+    marginTop: 12,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: colors.primaryDim,
+  },
+  addWorkplaceBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
   },
 });

@@ -4,8 +4,9 @@ import { config } from '../config/index.js'
 
 export interface AuthPayload {
   sub: string
-  phone: string
+  phone: string | null
   role: string
+  email?: string
 }
 
 export interface AuthRequest extends Request {

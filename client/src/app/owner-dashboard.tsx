@@ -232,6 +232,15 @@ export default function OwnerDashboardScreen() {
           </View>
         </View>
 
+        {/* ── 추가 사업장 등록 ── */}
+        <TouchableOpacity
+          style={styles.addWorkplaceBtn}
+          onPress={() => router.push("/register-workplace?mode=add")}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.addWorkplaceBtnText}>＋ 새 사업장 추가</Text>
+        </TouchableOpacity>
+
         <View style={{ height: 90 }} />
       </ScrollView>
 
@@ -364,4 +373,16 @@ const styles = StyleSheet.create({
   },
   workplaceSettingsBtnText: { fontSize: 14, fontWeight: "600", color: "#1E293B" },
   workplaceSettingsArrow:   { fontSize: 20, color: "#94A3B8", fontWeight: "600" },
+
+  addWorkplaceBtn: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderStyle: "dashed",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 14,
+    backgroundColor: colors.primaryDim,
+  },
+  addWorkplaceBtnText: { fontSize: 14, fontWeight: "600", color: colors.primary },
 });

@@ -25,7 +25,7 @@ const TERMS = [
 ] as const;
 
 export default function VerifyScreen() {
-  const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
+  const { phoneNumber, devCode } = useLocalSearchParams<{ phoneNumber: string; devCode?: string }>();
   const { login } = useAuth();
   const [verificationCode, setVerificationCode] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(300);
@@ -150,6 +150,13 @@ export default function VerifyScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>인증번호를 입력해주세요</Text>
           <Text style={styles.phoneNumberText}>{phoneNumber} 로 발송됐어요</Text>
+
+          {devCode ? (
+            <View style={styles.devBanner}>
+              <Text style={styles.devBannerLabel}>개발용 인증번호</Text>
+              <Text style={styles.devBannerCode}>{devCode}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.timerContainer}>
             <Text style={[styles.timerText, { color: timerColor }]}>
@@ -353,4 +360,17 @@ const styles = StyleSheet.create({
   confirmBtnDisabled: { backgroundColor: colors.border, shadowOpacity: 0, elevation: 0 },
   confirmBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
   confirmBtnTextDisabled: { color: colors.text3 },
+
+  devBanner: {
+    backgroundColor: "#FEF9C3",
+    borderWidth: 1,
+    borderColor: "#FDE047",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    alignItems: "center",
+  },
+  devBannerLabel: { fontSize: 11, color: "#92400E", marginBottom: 2 },
+  devBannerCode: { fontSize: 22, fontWeight: "700", color: "#92400E", letterSpacing: 4 },
 });

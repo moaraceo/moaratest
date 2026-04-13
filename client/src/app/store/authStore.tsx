@@ -11,7 +11,8 @@ export type UserRole = "owner" | "staff" | "admin" | null;
 
 export type AuthUser = {
   id: string;
-  phone: string;
+  phone: string | null;
+  email?: string | null;
   name: string | null;
   role: UserRole;
 };
