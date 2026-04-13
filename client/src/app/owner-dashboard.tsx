@@ -1,13 +1,13 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import OwnerTabBar from "./components/common/OwnerTabBar";
@@ -61,10 +61,10 @@ export default function OwnerDashboardScreen() {
   };
 
   const quickStaff = [
-    { id: "1", name: "박지수", initial: "박", status: "근무중",   hourlyWage: 10030 },
-    { id: "2", name: "이서준", initial: "이", status: "퇴근누락", hourlyWage: 10030 },
-    { id: "3", name: "김민지", initial: "김", status: "근무중",   hourlyWage: 10500 },
-    { id: "4", name: "최하은", initial: "최", status: "출근전",   hourlyWage: 10030 },
+    { id: "1", name: "김민지", initial: "김", status: "근무중",   hourlyWage: 10030 },
+    { id: "2", name: "박준혁", initial: "박", status: "퇴근누락", hourlyWage: 10030 },
+    { id: "3", name: "이수연", initial: "이", status: "근무중",   hourlyWage: 10500 },
+    { id: "4", name: "최태양", initial: "최", status: "출근전",   hourlyWage: 10030 },
   ];
 
   return (
@@ -155,6 +155,44 @@ export default function OwnerDashboardScreen() {
             <Text style={styles.taskLabel}>승인 대기</Text>
             <View style={[styles.taskBtn, { borderColor: "#F59E0B" }]}>
               <Text style={[styles.taskBtnText, { color: "#F59E0B" }]}>{stats.pendingCount}건 처리하기 →</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 사업장 설정 링크 ── */}
+        <TouchableOpacity
+          style={styles.workplaceSettingsBtn}
+          onPress={() => router.push("/workplace-settings?workplaceId=workplace-1")}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.workplaceSettingsBtnText}>⚙ OO카페 강남점 설정</Text>
+          <Text style={styles.workplaceSettingsArrow}>›</Text>
+        </TouchableOpacity>
+
+        {/* ── 빠른 설정 ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>빠른 설정</Text>
+          <TouchableOpacity
+            style={styles.taskRow}
+            onPress={() => router.push("/owner-payroll-settings?workplaceId=workplace-1")}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.taskDot, { backgroundColor: colors.primary }]} />
+            <Text style={styles.taskLabel}>급여 계산 설정</Text>
+            <View style={[styles.taskBtn, { borderColor: colors.primary }]}>
+              <Text style={[styles.taskBtnText, { color: colors.primary }]}>설정하기 →</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.taskRow}
+            onPress={() => router.push("/owner-invite?workplaceId=workplace-1")}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.taskDot, { backgroundColor: "#8B5CF6" }]} />
+            <Text style={styles.taskLabel}>직원 초대</Text>
+            <View style={[styles.taskBtn, { borderColor: "#8B5CF6" }]}>
+              <Text style={[styles.taskBtnText, { color: "#8B5CF6" }]}>코드 발급 →</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -311,4 +349,19 @@ const styles = StyleSheet.create({
   quickStatusIcon:  { fontSize: 10 },
   quickStatusText:  { fontSize: 12, fontWeight: "500" },
 
+  workplaceSettingsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    ...shadows.card,
+  },
+  workplaceSettingsBtnText: { fontSize: 14, fontWeight: "600", color: "#1E293B" },
+  workplaceSettingsArrow:   { fontSize: 20, color: "#94A3B8", fontWeight: "600" },
 });

@@ -1,9 +1,11 @@
 import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Modal,
     ScrollView,
+    Share,
     StyleSheet,
     Text,
     TextInput,
@@ -16,7 +18,17 @@ import OwnerTabBar from "./components/common/OwnerTabBar";
 import Toast from "./components/common/Toast";
 import { CURRENT_MINIMUM_WAGE } from "./constants/minimumWage";
 import { StaffMember, useStaff } from "./store/staffStore";
+import { useWorkplace } from "./store/workplaceStore";
 import { formatMoney } from "./utils/format";
+
+function formatExpiry(isoString: string): string {
+  const expiry = new Date(isoString);
+  const diffMs = expiry.getTime() - Date.now();
+  if (diffMs <= 0) return "만료됨";
+  const h = Math.floor(diffMs / 3600000);
+  const m = Math.floor((diffMs % 3600000) / 60000);
+  return h >= 1 ? `${h}시간 ${m}분 후 만료` : `${m}분 후 만료`;
+}
 
 export default function StaffManageScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
@@ -27,6 +39,38 @@ export default function StaffManageScreen() {
     getActiveStaff,
     getResignedStaff,
   } = useStaff();
+  const { workplaces, currentWorkplaceId, generateInviteCode } = useWorkplace();
+
+  // 메인 탭: 직원 목록 | 초대 코드
+  const [mainTab, setMainTab] = useState<"staff" | "invite">("staff");
+
+  // 초대 코드 상태
+  const currentWorkplace = workplaces.find((w) => w.id === currentWorkplaceId) ?? workplaces[0];
+  const [expiryText, setExpiryText] = useState(() =>
+    currentWorkplace ? formatExpiry(currentWorkplace.inviteCodeExpiry) : "",
+  );
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  useEffect(() => {
+    if (!currentWorkplace) return;
+    setExpiryText(formatExpiry(currentWorkplace.inviteCodeExpiry));
+    const id = setInterval(() => setExpiryText(formatExpiry(currentWorkplace.inviteCodeExpiry)), 60000);
+    return () => clearInterval(id);
+  }, [currentWorkplace?.inviteCodeExpiry]);
+
+  const handleRegenerate = () => {
+    if (!currentWorkplace) return;
+    setIsRegenerating(true);
+    generateInviteCode(currentWorkplace.id);
+    setTimeout(() => setIsRegenerating(false), 400);
+  };
+
+  const handleShare = async () => {
+    if (!currentWorkplace) return;
+    await Share.share({
+      message: `[모아라] ${currentWorkplace.name} 초대 코드: ${currentWorkplace.inviteCode}\n앱에서 '사업장 참여하기'를 선택하고 코드를 입력해주세요. (24시간 유효)`,
+    });
+  };
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
@@ -179,51 +223,112 @@ export default function StaffManageScreen() {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>직원 관리</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterTabs}>
-        {(["all", "active", "resigned"] as const).map((filter) => (
+      {/* 메인 탭: 직원 목록 | 초대 코드 */}
+      <View style={styles.mainTabs}>
+        {(["staff", "invite"] as const).map((tab) => (
           <TouchableOpacity
-            key={filter}
-            style={[
-              styles.filterTab,
-              selectedFilter === filter && styles.activeFilterTab,
-            ]}
-            onPress={() => setSelectedFilter(filter)}
+            key={tab}
+            style={[styles.mainTab, mainTab === tab && styles.mainTabActive]}
+            onPress={() => setMainTab(tab)}
           >
-            <Text
-              style={[
-                styles.filterTabText,
-                selectedFilter === filter && styles.activeFilterTabText,
-              ]}
-            >
-              {filter === "all"
-                ? "전체"
-                : filter === "active"
-                  ? "재직중"
-                  : "퇴사"}
+            <Text style={[styles.mainTabText, mainTab === tab && styles.mainTabTextActive]}>
+              {tab === "staff" ? "직원 목록" : "초대 코드"}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* 최저시급 안내 박스 */}
-      <View style={styles.minimumWageNotice}>
-        <Text style={styles.minimumWageTitle}>
-          2026년 최저시급: {formatMoney(CURRENT_MINIMUM_WAGE)}/h
-        </Text>
-        <Text style={styles.minimumWageSubtitle}>
-          직원 시급이 최저시급 이상인지 확인하세요
-        </Text>
-      </View>
+      {/* ── 초대 코드 탭 ── */}
+      {mainTab === "invite" && (
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.inviteSection}>
+            <Text style={styles.inviteWorkplaceName}>{currentWorkplace?.name}</Text>
+            <Text style={styles.inviteSubtitle}>
+              아래 코드를 직원에게 공유하세요.{"\n"}직원이 앱에서 입력하면 자동으로 참여돼요.
+            </Text>
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {filteredStaff.map((staff) => (
+            {/* 코드 박스 */}
+            <View style={styles.codeCard}>
+              <Text style={styles.codeLabel}>초대 코드</Text>
+              <View style={styles.codeRow}>
+                {(currentWorkplace?.inviteCode ?? "------").split("").map((ch, i) => (
+                  <View key={i} style={styles.codeBox}>
+                    <Text style={styles.codeChar}>{ch}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.expiryRow}>
+                <View style={[styles.expiryDot, expiryText === "만료됨" && { backgroundColor: colors.danger }]} />
+                <Text style={[styles.expiryText, expiryText === "만료됨" && { color: colors.danger }]}>
+                  {expiryText}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.8}>
+              <Text style={styles.shareBtnText}>코드 공유하기</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.regenBtn, isRegenerating && { opacity: 0.6 }]}
+              onPress={handleRegenerate}
+              disabled={isRegenerating}
+              activeOpacity={0.7}
+            >
+              {isRegenerating
+                ? <ActivityIndicator color={colors.primary} size="small" />
+                : <Text style={styles.regenBtnText}>코드 재발급 (24시간 연장)</Text>
+              }
+            </TouchableOpacity>
+
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>
+                • 코드는 발급 시점부터 24시간 유효해요{"\n"}
+                • 재발급하면 이전 코드는 즉시 무효화돼요{"\n"}
+                • 한 번 참여한 직원은 재입력 없이 계속 사용해요
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* ── 직원 목록 탭 ── */}
+      {mainTab === "staff" && (
+        <>
+          {/* Filter Tabs */}
+          <View style={styles.filterTabs}>
+            {(["all", "active", "resigned"] as const).map((filter) => (
+              <TouchableOpacity
+                key={filter}
+                style={[styles.filterTab, selectedFilter === filter && styles.activeFilterTab]}
+                onPress={() => setSelectedFilter(filter)}
+              >
+                <Text style={[styles.filterTabText, selectedFilter === filter && styles.activeFilterTabText]}>
+                  {filter === "all" ? "전체" : filter === "active" ? "재직중" : "퇴사"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* 최저시급 안내 박스 */}
+          <View style={styles.minimumWageNotice}>
+            <Text style={styles.minimumWageTitle}>
+              2026년 최저시급: {formatMoney(CURRENT_MINIMUM_WAGE)}/h
+            </Text>
+            <Text style={styles.minimumWageSubtitle}>
+              직원 시급이 최저시급 이상인지 확인하세요
+            </Text>
+          </View>
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+          >
+            {filteredStaff.map((staff) => (
           <TouchableOpacity
             key={staff.id}
             style={styles.staffCard}
@@ -306,7 +411,9 @@ export default function StaffManageScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+          </ScrollView>
+        </>
+      )}
 
       {/* Edit Modal */}
       <Modal
@@ -860,5 +967,141 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.primary,
     fontWeight: "600",
+  },
+
+  // ── 메인 탭 (직원 목록 | 초대 코드)
+  mainTabs: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  mainTab: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  mainTabActive: {
+    borderBottomColor: colors.primary,
+  },
+  mainTabText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.text2,
+  },
+  mainTabTextActive: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
+
+  // ── 초대 코드 탭 내용
+  inviteSection: {
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 40,
+  },
+  inviteWorkplaceName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 8,
+  },
+  inviteSubtitle: {
+    fontSize: 14,
+    color: colors.text2,
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  codeCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
+  },
+  codeLabel: {
+    fontSize: 13,
+    color: colors.text2,
+    marginBottom: 16,
+    fontWeight: "500",
+  },
+  codeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 20,
+  },
+  codeBox: {
+    width: 44,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: colors.primaryDim,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  codeChar: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  expiryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  expiryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+  },
+  expiryText: {
+    fontSize: 13,
+    color: colors.text2,
+  },
+  shareBtn: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    ...shadows.button,
+  },
+  shareBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  regenBtn: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  regenBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  noticeBox: {
+    backgroundColor: colors.surface2,
+    borderRadius: 12,
+    padding: 16,
+  },
+  noticeText: {
+    fontSize: 13,
+    color: colors.text2,
+    lineHeight: 22,
   },
 });

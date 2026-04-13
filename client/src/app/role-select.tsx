@@ -1,24 +1,52 @@
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "./store/authStore";
+
+const API_URL = process.env["EXPO_PUBLIC_API_URL"] ?? "";
 import { colors, shadows } from "../constants/theme";
 
 export default function RoleSelectScreen() {
-  const handleRoleSelect = (role: "owner" | "employee") => {
-    // TODO: Implement role selection logic
-    console.log("Selected role:", role);
+  const { user, accessToken, setRole } = useAuth();
+  const [loading, setLoading] = useState(false);
 
-    // Navigate to appropriate dashboard based on role
+  const handleRoleSelect = async (role: "owner" | "staff") => {
+    if (!user) {
+      Alert.alert("오류", "로그인 세션이 만료됐어요. 다시 인증해주세요.");
+      router.replace("/(tabs)");
+      return;
+    }
+
+    setLoading(true);
+    const res = await fetch(`${API_URL}/auth/role`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ role }),
+    }).catch(() => null);
+    setLoading(false);
+
+    if (!res?.ok) {
+      Alert.alert("오류", "역할 설정에 실패했습니다. 다시 시도해주세요.");
+      return;
+    }
+
+    setRole(role);
+
     if (role === "owner") {
-      router.replace("/owner-dashboard");
-    } else if (role === "employee") {
-      router.replace("/staff-main");
+      router.replace("/register-workplace");
+    } else {
+      router.replace("/join-workplace");
     }
   };
 
@@ -30,28 +58,38 @@ export default function RoleSelectScreen() {
         <TouchableOpacity
           style={styles.roleCard}
           onPress={() => handleRoleSelect("owner")}
+          disabled={loading}
         >
           <View style={styles.cardContent}>
             <Text style={styles.icon}>🏪</Text>
             <View style={styles.textContainer}>
               <Text style={styles.roleTitle}>사장님</Text>
-              <Text style={styles.roleDescription}>사업장을 관리해요</Text>
+              <Text style={styles.roleDescription}>사업장을 등록하고 직원을 관리해요</Text>
             </View>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.roleCard}
-          onPress={() => handleRoleSelect("employee")}
+          onPress={() => handleRoleSelect("staff")}
+          disabled={loading}
         >
           <View style={styles.cardContent}>
             <Text style={styles.icon}>👤</Text>
             <View style={styles.textContainer}>
               <Text style={styles.roleTitle}>직원</Text>
-              <Text style={styles.roleDescription}>출퇴근을 기록해요</Text>
+              <Text style={styles.roleDescription}>사장님께 받은 초대코드로 참여해요</Text>
             </View>
           </View>
         </TouchableOpacity>
+
+        {loading && (
+          <ActivityIndicator
+            size="large"
+            color={colors.primary}
+            style={{ marginTop: 24 }}
+          />
+        )}
       </View>
     </SafeAreaView>
   );

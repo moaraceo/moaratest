@@ -1,9 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
-  ScrollView,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,118 +13,132 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import StaffTabBar from "./components/common/StaffTabBar";
-import { CURRENT_MINIMUM_WAGE } from "./constants/minimumWage";
 import { useAttendance } from "./store/attendanceStore";
+import { usePayrollSettings } from "./store/payrollSettingsStore";
 import { useStaff } from "./store/staffStore";
+import { useWorkplace } from "./store/workplaceStore";
+import { calcDailyPayroll } from "./utils/payroll";
+
+type AttendanceState = "before" | "working" | "break_select" | "done";
+
+const STORAGE_KEY = "@moara:today_attendance";
+
+type StoredAttendance = {
+  state: AttendanceState;
+  clockIn: string | null;
+  clockOut: string | null;
+  breakMinutes: number;
+  date: string;
+};
+
+function getTodayKey(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = (now.getMonth() + 1).toString().padStart(2, "0");
+  const d = now.getDate().toString().padStart(2, "0");
+  return `${y}.${m}.${d}`;
+}
+
+function getCurrentTime(): string {
+  const now = new Date();
+  return `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+}
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function formatTime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+}
 
 export default function StaffMainScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const router = useRouter();
-  const { clockIn, clockOut, getTodayRecord } = useAttendance();
+  const { clockIn: storeClockIn } = useAttendance();
+
+
+  // ── 직원 정보 ──
+  const { getSettings } = usePayrollSettings();
+  const { setCurrentWorkplace, getStaffWorkplaces, currentWorkplaceId } = useWorkplace();
   const { staffList } = useStaff();
-  const [showMessage, setShowMessage] = useState<string>("");
-  const [currentWorkMinutes, setCurrentWorkMinutes] = useState<number>(0);
-  const [showClockOutModal, setShowClockOutModal] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState<string>("");
-  const [elapsedTime, setElapsedTime] = useState({
-    hours: 0,
-    minutes: 0,
-    totalMinutes: 0,
-  });
 
-  // 현재 로그인한 직원 정보 찾기 (지금은 샘플로 "김민지" 기준)
-  const currentStaff =
-    staffList.find((s) => s.name === "김민지") ?? staffList[0];
-  const wage = currentStaff?.hourlyWage ?? CURRENT_MINIMUM_WAGE;
+  // 사업장 전환 모달
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
 
-  // 오늘 근무 기록 가져오기
-  const todayRecord = getTodayRecord("김민지");
-  const isClockedIn =
-    todayRecord && todayRecord.clockIn && !todayRecord.clockOut;
-  const isWorkComplete = todayRecord && todayRecord.clockOut;
+  // 현재 로그인 직원 (샘플: 김민지)
+  const currentStaff = staffList.find((s) => s.name === "김민지") ?? staffList[0];
+  const myWorkplaces = getStaffWorkplaces(currentStaff?.workplaceIds ?? []);
+  const activeWorkplace = myWorkplaces.find((w) => w.id === currentWorkplaceId) ?? myWorkplaces[0];
 
-  // 근무시간 실시간 계산
-  useEffect(() => {
-    if (isClockedIn && todayRecord?.clockIn) {
-      const interval = setInterval(() => {
-        const now = new Date();
-        const [hours, minutes] = todayRecord.clockIn.split(":").map(Number);
-        const clockInTime = new Date();
-        clockInTime.setHours(hours, minutes, 0, 0);
+  const payrollSettings = getSettings(currentWorkplaceId ?? "workplace-1");
 
-        const diffMs = now.getTime() - clockInTime.getTime();
-        const diffMinutes = Math.floor(diffMs / (1000 * 60));
-        setCurrentWorkMinutes(diffMinutes);
-      }, 60000); // 1분마다 업데이트
+  // ── 근태 상태 ──
+  const [attendanceState, setAttendanceState] = useState<AttendanceState>("before");
+  const [clockInTime, setClockInTime] = useState<string | null>(null);
+  const [clockOutTime, setClockOutTime] = useState<string | null>(null);
+  const [storedBreakMinutes, setStoredBreakMinutes] = useState<number>(0);
 
-      return () => clearInterval(interval);
+  // ── break_select UI ──
+  const [selectedBreakMinutes, setSelectedBreakMinutes] = useState<number>(0);
+
+  // ── working 실시간 카운터 ──
+  const [workMinutes, setWorkMinutes] = useState<number>(0);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // AsyncStorage 저장/불러오기
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const saveToStorage = async (data: StoredAttendance) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("근태 저장 실패:", e);
     }
-  }, [isClockedIn, todayRecord]);
-
-  // 메시지 표시 함수
-  const showMessageTemporarily = (message: string) => {
-    setShowMessage(message);
-    setTimeout(() => setShowMessage(""), 1000);
   };
 
-  // 근무시간 계산
-  const calcElapsedTime = (clockInTime: string) => {
-    const [inH, inM] = clockInTime.split(":").map(Number);
-    const now = new Date();
-    const totalMinutes =
-      now.getHours() * 60 + now.getMinutes() - (inH * 60 + inM);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return { hours, minutes, totalMinutes };
-  };
-
-  // 현재 시각 업데이트
-  const getCurrentTimeString = (): string => {
-    const now = new Date();
-    const hours = now.getHours().toString().padStart(2, "0");
-    const minutes = now.getMinutes().toString().padStart(2, "0");
-    return `${hours}:${minutes}`;
-  };
-
-  // 모달이 열린 상태에서 실시간 업데이트
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
+    const loadState = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const stored: StoredAttendance = JSON.parse(raw);
+        const today = getTodayKey();
 
-    if (showClockOutModal && todayRecord?.clockIn) {
-      // 즉시 업데이트
-      const elapsed = calcElapsedTime(todayRecord.clockIn);
-      setElapsedTime(elapsed);
-      setCurrentTime(getCurrentTimeString());
+        if (stored.date !== today) {
+          // 날짜가 다르면 초기화
+          const reset: StoredAttendance = {
+            state: "before",
+            clockIn: null,
+            clockOut: null,
+            breakMinutes: 0,
+            date: today,
+          };
+          await saveToStorage(reset);
+          return;
+        }
 
-      // 1초마다 업데이트
-      interval = setInterval(() => {
-        setElapsedTime(calcElapsedTime(todayRecord.clockIn));
-        setCurrentTime(getCurrentTimeString());
-      }, 1000);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
+        setAttendanceState(stored.state);
+        setClockInTime(stored.clockIn);
+        setClockOutTime(stored.clockOut);
+        setStoredBreakMinutes(stored.breakMinutes);
+      } catch (e) {
+        console.error("근태 불러오기 실패:", e);
+      }
     };
-  }, [showClockOutModal, todayRecord?.clockIn]);
+    loadState();
+  }, []);
 
-  // 근무시간 포맷
-  const formatWorkTime = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins.toString().padStart(2, "0")}m`;
-  };
-
-  // 예상 기본급 계산
-  const calculateBasicPay = (workMinutes: number): number => {
-    return Math.floor((workMinutes / 60) * wage);
-  };
-
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // GPS pulse 애니메이션
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.2,
+          toValue: 1.3,
           duration: 1000,
           useNativeDriver: true,
         }),
@@ -138,213 +153,403 @@ export default function StaffMainScreen() {
     return () => pulse.stop();
   }, [pulseAnim]);
 
-  const handleCheckIn = () => {
-    if (isClockedIn && todayRecord) {
-      // 퇴근 처리 - 모달 표시
-      setShowClockOutModal(true);
-    } else {
-      // 출근 처리
-      clockIn("김민지", "김", "workplace-1");
-      showMessageTemporarily("출근이 기록됐어요 ✓");
-    }
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // working 상태 실시간 카운터 (1분마다)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  useEffect(() => {
+    if (attendanceState !== "working" || !clockInTime) return;
+
+    const calc = () => {
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      return Math.max(0, nowMins - timeToMinutes(clockInTime));
+    };
+
+    setWorkMinutes(calc());
+    const interval = setInterval(() => setWorkMinutes(calc()), 60000);
+    return () => clearInterval(interval);
+  }, [attendanceState, clockInTime]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 급여 계산
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const calcPay = (ci: string, co: string, breakMins: number): number => {
+    const date = getTodayKey().replace(/\./g, "-");
+    return calcDailyPayroll({ date, clockIn: ci, clockOut: co, breakMinutes: breakMins }, payrollSettings).dailyTotal;
   };
 
-  const handleClockOutConfirm = () => {
-    if (todayRecord) {
-      clockOut(todayRecord.id);
-      setShowClockOutModal(false);
-      showMessageTemporarily("퇴근이 기록됐어요 ✓");
-    }
+  // break_select / done 총 근무시간
+  const totalWorkMinutes =
+    clockInTime && clockOutTime
+      ? Math.max(0, timeToMinutes(clockOutTime) - timeToMinutes(clockInTime))
+      : 0;
+
+  const netMinutes = Math.max(0, totalWorkMinutes - selectedBreakMinutes);
+  const doneNetMinutes = Math.max(0, totalWorkMinutes - storedBreakMinutes);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 상태 전환 핸들러
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const handleClockIn = () => {
+    const now = getCurrentTime();
+    const today = getTodayKey();
+    const data: StoredAttendance = {
+      state: "working",
+      clockIn: now,
+      clockOut: null,
+      breakMinutes: 0,
+      date: today,
+    };
+    setClockInTime(now);
+    setAttendanceState("working");
+    saveToStorage(data);
+    storeClockIn("김민지", "김", "workplace-1");
   };
 
-  const handleClockOutCancel = () => {
-    setShowClockOutModal(false);
+  const handleClockOutPress = () => {
+    const now = getCurrentTime();
+    const today = getTodayKey();
+    const data: StoredAttendance = {
+      state: "break_select",
+      clockIn: clockInTime,
+      clockOut: now,
+      breakMinutes: 0,
+      date: today,
+    };
+    setClockOutTime(now);
+    setSelectedBreakMinutes(0);
+    setAttendanceState("break_select");
+    saveToStorage(data);
   };
 
-  const navigateToPayslip = () => {
-    router.push("/payslip");
+  const handleSubmit = () => {
+    if (!clockInTime || !clockOutTime) return;
+    const today = getTodayKey();
+    const data: StoredAttendance = {
+      state: "done",
+      clockIn: clockInTime,
+      clockOut: clockOutTime,
+      breakMinutes: selectedBreakMinutes,
+      date: today,
+    };
+    setStoredBreakMinutes(selectedBreakMinutes);
+    setAttendanceState("done");
+    saveToStorage(data);
+
   };
 
-  const navigateToWorkHistory = () => {
-    router.push("/work-history");
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 휴게시간 선택 옵션
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const getBreakOptions = (): number[] => {
+    if (totalWorkMinutes >= 480) return [0, 30, 60];
+    if (totalWorkMinutes >= 240) return [0, 30];
+    return [0];
   };
 
-  const navigateToProfile = () => {
-    router.push("/profile");
-  };
+  const breakOptions = getBreakOptions();
+  const show4hWarning = totalWorkMinutes >= 240 && totalWorkMinutes < 480;
+  const show8hWarning = totalWorkMinutes >= 480;
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // GPS 점 색상
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const gpsDotColor =
+    attendanceState === "working"
+      ? colors.success
+      : attendanceState === "break_select"
+        ? colors.warn
+        : attendanceState === "done"
+          ? colors.text3
+          : colors.primary;
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      {/* Fixed Header */}
+      {/* ── 사업장 전환 모달 ── */}
+      <Modal
+        visible={showSwitchModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSwitchModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSwitchModal(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.modalTitle}>사업장 선택</Text>
+            {myWorkplaces.map((wp) => {
+              const isActive = wp.id === currentWorkplaceId;
+              return (
+                <TouchableOpacity
+                  key={wp.id}
+                  style={[styles.modalItem, isActive && styles.modalItemActive]}
+                  onPress={() => {
+                    setCurrentWorkplace(wp.id);
+                    setShowSwitchModal(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.modalItemText, isActive && styles.modalItemTextActive]}>
+                    {wp.name}
+                  </Text>
+                  {isActive && <Text style={styles.modalItemCheck}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── 헤더 ── */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.dropdown}>
-            <Text style={styles.storeName}>카페 A 매장 🔽</Text>
+        <View>
+          <TouchableOpacity onPress={() => setShowSwitchModal(true)}>
+            <Text style={styles.storeName}>{activeWorkplace?.name ?? "사업장"} 🔽</Text>
           </TouchableOpacity>
-          <Text style={styles.userName}>김민지님</Text>
+          <Text style={styles.userName}>{currentStaff?.name ?? "직원"}님</Text>
         </View>
-        <TouchableOpacity style={styles.notificationButton}>
+        <TouchableOpacity style={styles.notificationBtn}>
           <Text style={styles.notificationIcon}>🔔</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Scrollable Content */}
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* GPS Authentication Status */}
-        <View style={styles.gpsStatus}>
-          <Animated.View
-            style={[
-              styles.gpsRing,
-              {
-                transform: [{ scale: pulseAnim }],
-              },
-            ]}
-          />
-          <View style={styles.gpsDot} />
-          <Text style={styles.gpsText}>
-            {isClockedIn ? "근무중 ●" : "GPS 인증"}
+      <View style={styles.body}>
+        {/* ── GPS 인증 UI ── */}
+        <View style={styles.gpsSection}>
+          <View style={styles.gpsIndicator}>
+            <Animated.View
+              style={[styles.gpsRing, { transform: [{ scale: pulseAnim }] }]}
+            />
+            <View style={[styles.gpsDot, { backgroundColor: gpsDotColor }]} />
+          </View>
+          <Text style={styles.gpsLabel}>
+            {attendanceState === "working" ? "근무중 ●" : "GPS 인증"}
           </Text>
-          {!isClockedIn && (
-            <Text style={styles.gpsSubtext}>위치 확인 완료</Text>
-          )}
-          {isClockedIn && (
-            <Text style={styles.workTimeText}>
-              {formatWorkTime(currentWorkMinutes)}
-            </Text>
-          )}
+          <Text style={styles.gpsSubLabel}>위치 확인 완료</Text>
+          <Text style={styles.dateText}>{getTodayKey()}</Text>
         </View>
 
-        {/* Check In/Out Button */}
-        {!isWorkComplete ? (
-          <TouchableOpacity
-            style={[
-              styles.checkInButton,
-              isClockedIn ? styles.checkOutButton : null,
-            ]}
-            onPress={handleCheckIn}
-          >
-            <View style={styles.shimmerLine} />
-            <Text style={styles.checkInTitle}>
-              {isClockedIn ? "퇴 근" : "출 근"}
+        {/* ── 정보 카드 ── */}
+        <View style={styles.infoCard}>
+          {/* 출근시간 */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>출근시간</Text>
+            <Text style={styles.infoValue}>{clockInTime ?? "—"}</Text>
+          </View>
+
+          {/* 퇴근시간 */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>퇴근시간</Text>
+            <Text
+              style={[
+                styles.infoValue,
+                attendanceState === "working" && { color: colors.success },
+              ]}
+            >
+              {attendanceState === "before"
+                ? "—"
+                : attendanceState === "working"
+                  ? "근무중"
+                  : (clockOutTime ?? "—")}
             </Text>
-            <Text style={styles.checkInSubtext}>
-              {isClockedIn ? "탭하여 퇴근 기록" : "탭하여 출근 기록"}
+          </View>
+
+          {/* 휴게시간 (working/break_select/done) */}
+          {attendanceState !== "before" && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>휴게시간</Text>
+              <Text
+                style={[
+                  styles.infoValue,
+                  attendanceState === "working" && { color: colors.text3 },
+                ]}
+              >
+                {attendanceState === "working"
+                  ? "미선택"
+                  : attendanceState === "break_select"
+                    ? selectedBreakMinutes === 0
+                      ? "없음"
+                      : `${selectedBreakMinutes}분`
+                    : storedBreakMinutes === 0
+                      ? "없음"
+                      : `${storedBreakMinutes}분`}
+              </Text>
+            </View>
+          )}
+
+          {/* 실 근무 */}
+          <View style={[styles.infoRow, styles.infoRowLast]}>
+            <Text style={styles.infoLabel}>실 근무</Text>
+            <Text
+              style={[
+                styles.infoValue,
+                attendanceState !== "before" && { color: colors.primary },
+              ]}
+            >
+              {attendanceState === "before"
+                ? "—"
+                : attendanceState === "working"
+                  ? formatTime(workMinutes)
+                  : attendanceState === "break_select"
+                    ? formatTime(netMinutes)
+                    : formatTime(doneNetMinutes)}
             </Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.workCompleteStatus}>
-            <Text style={styles.workCompleteText}>✓ 오늘 근무 완료</Text>
-            <Text style={styles.totalWorkTime}>
-              총 {formatWorkTime(todayRecord?.workMinutes || 0)} 근무했어요
-            </Text>
+          </View>
+        </View>
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* STATE: before                  */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {attendanceState === "before" && (
+          <View style={styles.actionSection}>
+            <TouchableOpacity style={styles.clockInBtn} onPress={handleClockIn}>
+              <Text style={styles.clockInBtnText}>출근하기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.clockOutBtn, styles.btnDisabled]}
+              disabled
+            >
+              <Text style={styles.btnDisabledText}>퇴근하기</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Success Message */}
-        {showMessage ? (
-          <View style={styles.successMessage}>
-            <Text style={styles.successMessageText}>{showMessage}</Text>
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* STATE: working                  */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {attendanceState === "working" && (
+          <View style={styles.actionSection}>
+            {/* 예상 급여 카드 */}
+            <View style={styles.payCard}>
+              <Text style={styles.payCardLabel}>예상 급여 (세전)</Text>
+              <Text style={styles.payCardAmount}>
+                {calcPay(clockInTime!, getCurrentTime(), 0).toLocaleString()}
+                <Text style={styles.payCardUnit}>원</Text>
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.clockInBtn, styles.btnDisabled]}
+              disabled
+            >
+              <Text style={styles.btnDisabledText}>출근하기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.clockOutBtn}
+              onPress={handleClockOutPress}
+            >
+              <Text style={styles.clockOutBtnText}>퇴근하기</Text>
+            </TouchableOpacity>
           </View>
-        ) : null}
+        )}
 
-        {/* Clock Out Confirmation Modal */}
-        <Modal
-          visible={showClockOutModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={handleClockOutCancel}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalIcon}>⏰</Text>
-                <Text style={styles.modalTitle}>퇴근하시겠어요?</Text>
-              </View>
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* STATE: break_select             */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {attendanceState === "break_select" && (
+          <View style={styles.actionSection}>
+            {/* 총 근무 표시 */}
+            <View style={styles.totalWorkRow}>
+              <Text style={styles.totalWorkLabel}>총 근무시간</Text>
+              <Text style={styles.totalWorkValue}>
+                {formatTime(totalWorkMinutes)}
+              </Text>
+            </View>
 
-              <View style={styles.modalDivider} />
+            {/* 휴게시간 선택 */}
+            <View style={styles.breakCard}>
+              <Text style={styles.breakTitle}>휴게시간 선택</Text>
 
-              {/* Information Rows */}
-              <View style={styles.infoContainer}>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>출근 시각</Text>
-                  <Text style={styles.infoValue}>{todayRecord?.clockIn}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>현재 시각</Text>
-                  <Text style={styles.infoValue}>{currentTime}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>근무시간</Text>
-                  <Text
-                    style={[
-                      styles.workTimeValue,
-                      elapsedTime.totalMinutes < 5
-                        ? styles.warningWorkTime
-                        : null,
-                    ]}
-                  >
-                    {formatWorkTime(elapsedTime.totalMinutes)}
+              {show4hWarning && (
+                <View style={styles.breakWarning}>
+                  <Text style={styles.breakWarningText}>
+                    ⚠ 4시간 이상 근무 시 30분 휴게가 의무예요
                   </Text>
                 </View>
+              )}
+              {show8hWarning && (
+                <View style={styles.breakWarning}>
+                  <Text style={styles.breakWarningText}>
+                    ⚠ 8시간 이상 근무 시 1시간 휴게가 의무예요
+                  </Text>
+                </View>
+              )}
 
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>예상 기본급</Text>
-                  <View style={styles.payContainer}>
-                    <Text style={styles.payValue}>
-                      {calculateBasicPay(
-                        elapsedTime.totalMinutes,
-                      ).toLocaleString()}
+              <View style={styles.breakOptions}>
+                {breakOptions.map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.breakOption,
+                      selectedBreakMinutes === opt && styles.breakOptionActive,
+                    ]}
+                    onPress={() => setSelectedBreakMinutes(opt)}
+                  >
+                    <Text
+                      style={[
+                        styles.breakOptionText,
+                        selectedBreakMinutes === opt &&
+                          styles.breakOptionTextActive,
+                      ]}
+                    >
+                      {opt === 0 ? "없음" : opt === 30 ? "30분" : "1시간"}
                     </Text>
-                    <Text style={styles.payUnit}>원 (세전)</Text>
-                  </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 실시간 반영 카드 */}
+            <View style={styles.payCard}>
+              <View style={styles.payCardRow}>
+                <Text style={styles.payCardLabel}>실 근무시간</Text>
+                <Text style={styles.payCardNetTime}>
+                  {formatTime(netMinutes)}
+                </Text>
+              </View>
+              <View style={[styles.payCardRow, styles.payCardRowDivider]}>
+                <Text style={styles.payCardLabel}>예상 급여 (세전)</Text>
+                <Text style={styles.payCardAmount}>
+                  {calcPay(clockInTime!, clockOutTime!, selectedBreakMinutes).toLocaleString()}
+                  <Text style={styles.payCardUnit}>원</Text>
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+              <Text style={styles.submitBtnText}>근무 완료 제출</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* STATE: done                     */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {attendanceState === "done" && (
+          <View style={styles.actionSection}>
+            {/* 급여 카드 */}
+            <View style={styles.donePayCard}>
+              <View style={styles.donePayHeader}>
+                <Text style={styles.donePayLabel}>오늘 세전 급여</Text>
+                <View style={styles.pendingBadge}>
+                  <Text style={styles.pendingBadgeText}>승인 대기 중</Text>
                 </View>
               </View>
-
-              <View style={styles.modalDivider} />
-
-              {/* Modal Buttons */}
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={handleClockOutCancel}
-                >
-                  <Text style={styles.cancelButtonText}>취소</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.confirmButton}
-                  onPress={handleClockOutConfirm}
-                >
-                  <Text style={styles.confirmButtonText}>퇴근 완료</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.donePayAmount}>
+                {calcPay(clockInTime!, clockOutTime!, storedBreakMinutes).toLocaleString()}
+                <Text style={styles.donePayUnit}>원</Text>
+              </Text>
+              <Text style={styles.donePayNote}>사장님 승인 후 확정돼요</Text>
             </View>
-          </View>
-        </Modal>
 
-        {/* Weekly Work Status */}
-        <View style={styles.weeklyStatus}>
-          <View style={styles.weeklyHeader}>
-            <Text style={styles.weeklyLabel}>누적 근무시간</Text>
-            <Text style={styles.weeklyHours}>12h / 15h</Text>
+            <TouchableOpacity
+              style={styles.historyBtn}
+              onPress={() => router.push("/work-history")}
+            >
+              <Text style={styles.historyBtnText}>근무이력 보기</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBackground}>
-              <View style={[styles.progressFill, { width: "80%" }]} />
-            </View>
-          </View>
-          <View style={styles.milestones}>
-            <Text style={styles.milestone}>0h</Text>
-            <Text style={styles.milestoneHighlight}>▲ 주휴수당 기준 15h</Text>
-            <Text style={styles.milestone}>20h</Text>
-          </View>
-        </View>
-      </ScrollView>
+        )}
+
+      </View>
 
       <StaffTabBar activeTab="workplace" />
     </SafeAreaView>
@@ -356,6 +561,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  // ── 헤더
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -366,22 +572,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerLeft: {
-    flexDirection: "column",
-  },
-  dropdown: {
-    marginBottom: 4,
-  },
   storeName: {
     fontSize: 16,
     fontWeight: "600",
     color: colors.text,
+    marginBottom: 4,
   },
   userName: {
     fontSize: 12,
     color: colors.text2,
   },
-  notificationButton: {
+  notificationBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -394,325 +595,368 @@ const styles = StyleSheet.create({
   notificationIcon: {
     fontSize: 18,
   },
-  scrollView: {
+  body: {
+    flex: 1,
     paddingHorizontal: 20,
   },
-  gpsStatus: {
+  // ── GPS
+  gpsSection: {
     alignItems: "center",
-    marginTop: 40,
-    marginBottom: 32,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  gpsIndicator: {
+    width: 64,
+    height: 64,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
   },
   gpsRing: {
     position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 2,
     borderColor: colors.primary,
     opacity: 0.3,
   },
   gpsDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
-    marginBottom: 16,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
-  gpsText: {
-    fontSize: 16,
+  gpsLabel: {
+    fontSize: 15,
     fontWeight: "600",
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 3,
   },
-  gpsSubtext: {
+  gpsSubLabel: {
     fontSize: 12,
     color: colors.text2,
+    marginBottom: 4,
   },
-  workTimeText: {
-    fontSize: 14,
-    color: colors.success,
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  checkInButton: {
-    height: 130,
-    borderRadius: 24,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-    borderWidth: 3,
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 12,
-    position: "relative",
-  },
-  checkOutButton: {
-    backgroundColor: colors.warn,
-    shadowColor: colors.success,
-    borderWidth: 3,
-    borderColor: colors.success,
-  },
-  shimmerLine: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-  },
-  workCompleteStatus: {
-    height: 130,
-    borderRadius: 24,
-    backgroundColor: colors.success,
-    borderWidth: 3,
-    borderColor: colors.success,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  workCompleteText: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: colors.surface,
-    marginBottom: 8,
-  },
-  totalWorkTime: {
-    fontSize: 14,
+  dateText: {
+    fontSize: 13,
+    fontWeight: "500",
     color: colors.text2,
   },
-  successMessage: {
-    backgroundColor: colors.successDim,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  successMessageText: {
-    color: colors.success,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  // Modal Styles
-  modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalCard: {
+  // ── 정보 카드
+  infoCard: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 24,
-    padding: 24,
-    width: "80%",
-    maxWidth: 320,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    marginBottom: 12,
     ...shadows.card,
-  },
-  modalHeader: {
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  modalIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  modalDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 16,
-  },
-  infoContainer: {
-    gap: 12,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  infoRowLast: {
+    borderBottomWidth: 0,
   },
   infoLabel: {
     fontSize: 14,
     color: colors.text2,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: colors.text,
   },
-  workTimeValue: {
-    fontSize: 16,
+  // ── 액션 영역 (공통 래퍼)
+  actionSection: {
+    gap: 10,
+    paddingBottom: 8,
+  },
+  // ── 출근 버튼 (파란색)
+  clockInBtn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.button,
+  },
+  clockInBtnText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  // ── 퇴근 버튼 (초록)
+  clockOutBtn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.success,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: colors.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  clockOutBtnText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  // ── 비활성 버튼
+  btnDisabled: {
+    backgroundColor: colors.border,
+    opacity: 0.4,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  btnDisabledText: {
+    fontSize: 17,
     fontWeight: "600",
-    color: colors.primary,
-  },
-  warningWorkTime: {
-    color: colors.warn,
-  },
-  payContainer: {
-    alignItems: "flex-end",
-  },
-  payValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.primary,
-  },
-  payUnit: {
-    fontSize: 12,
     color: colors.text2,
   },
-  modalButtons: {
-    flexDirection: "row",
-    gap: 10,
+  // ── 예상 급여 카드 (working / break_select)
+  payCard: {
+    backgroundColor: colors.primaryDim,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 16,
+    padding: 12,
   },
-  cancelButton: {
-    flex: 1,
+  payCardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  payCardRowDivider: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  payCardLabel: {
+    fontSize: 13,
+    color: colors.text2,
+  },
+  payCardNetTime: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  payCardAmount: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  payCardUnit: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.primary,
+  },
+  // ── 총 근무 행 (break_select 상단)
+  totalWorkRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    height: 48,
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    ...shadows.card,
   },
-  cancelButtonText: {
+  totalWorkLabel: {
     fontSize: 14,
     color: colors.text2,
+  },
+  totalWorkValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  // ── 휴게시간 선택 카드
+  breakCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 12,
+    ...shadows.card,
+  },
+  breakTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 8,
+  },
+  breakWarning: {
+    backgroundColor: colors.warnDim,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  breakWarningText: {
+    fontSize: 13,
+    color: colors.warn,
     fontWeight: "500",
   },
-  confirmButton: {
+  breakOptions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  breakOption: {
     flex: 1,
-    backgroundColor: colors.success,
+    height: 42,
     borderRadius: 12,
-    height: 48,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: colors.bg,
   },
-  confirmButtonText: {
+  breakOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryDim,
+  },
+  breakOptionText: {
     fontSize: 14,
     fontWeight: "600",
-    color: colors.surface,
+    color: colors.text2,
   },
-  checkInTitle: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: colors.surface,
-    marginBottom: 4,
-  },
-  checkInSubtext: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
-  },
-  weeklyHours: {
-    fontSize: 14,
+  breakOptionTextActive: {
     color: colors.primary,
-    fontFamily: "monospace",
   },
-  weeklyStatus: {
-    marginBottom: 24,
+  // ── 근무 완료 제출
+  submitBtn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.button,
   },
-  weeklyHeader: {
+  submitBtnText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  // ── done 급여 카드
+  donePayCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 20,
+    ...shadows.card,
+  },
+  donePayHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
-  weeklyLabel: {
+  donePayLabel: {
     fontSize: 14,
     color: colors.text2,
   },
-  progressContainer: {
-    marginBottom: 8,
-  },
-  progressBackground: {
-    height: 8,
-    backgroundColor: colors.border,
-    borderRadius: 4,
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "linear-gradient(90deg, #2563EB 0%, #8B5CF6 100%)",
-    borderRadius: 4,
-  },
-  milestones: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  milestone: {
-    fontSize: 10,
-    color: colors.text2,
-  },
-  milestoneHighlight: {
-    fontSize: 10,
-    color: colors.primary,
-    fontWeight: "500",
-  },
-  moaraGuide: {
-    backgroundColor: colors.primaryDim,
+  pendingBadge: {
+    backgroundColor: colors.warnDim,
     borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 14,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-    ...shadows.card,
+    borderColor: colors.warn,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  guideIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  guideText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  guideHighlight: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  summaryContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 16,
-    alignItems: "center",
-    ...shadows.card,
-  },
-  summaryLabel: {
+  pendingBadgeText: {
     fontSize: 12,
-    color: colors.text2,
+    fontWeight: "600",
+    color: colors.warn,
+  },
+  donePayAmount: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: colors.text,
     marginBottom: 8,
   },
-  summaryValue: {
+  donePayUnit: {
     fontSize: 18,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  donePayNote: {
+    fontSize: 13,
+    color: colors.text2,
+  },
+  // ── 근무이력 보기
+  historyBtn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  historyBtnText: {
+    fontSize: 16,
     fontWeight: "600",
     color: colors.text,
-    marginBottom: 4,
   },
-  summaryUnit: {
+  // ── 사업장 전환 모달
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
+    paddingTop: 100,
+    paddingLeft: 20,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingVertical: 8,
+    minWidth: 220,
+    ...shadows.card,
+  },
+  modalTitle: {
     fontSize: 12,
-    color: colors.text2,
+    fontWeight: "600",
+    color: colors.text3,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    letterSpacing: 0.5,
+  },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  modalItemActive: {
+    backgroundColor: colors.primaryDim,
+  },
+  modalItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  modalItemTextActive: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  modalItemCheck: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "700",
   },
 });

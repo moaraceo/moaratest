@@ -5,13 +5,13 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import { useWorkplace } from "./store/workplaceStore";
 
@@ -20,7 +20,7 @@ export default function InviteCodeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const inputRefs = useRef<(TextInput | null)[]>([]);
-  const { joinByInviteCode } = useWorkplace();
+  const { joinByInviteCode, setCurrentWorkplace } = useWorkplace();
 
   const handleInputChange = (value: string, index: number) => {
     // Only allow alphanumeric characters
@@ -58,10 +58,8 @@ export default function InviteCodeScreen() {
       const result = joinByInviteCode(code);
 
       if (result.success && result.workplace) {
-        // Save workplace ID to AsyncStorage
+        setCurrentWorkplace(result.workplace.id);
         await AsyncStorage.setItem("@moara:workplaceId", result.workplace.id);
-
-        // Navigate to staff-main (replace to prevent back navigation)
         router.replace("/staff-main");
       } else {
         setError(result.error || "유효하지 않은 초대 코드예요");

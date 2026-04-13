@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // directUrl은 마이그레이션 전용 (pgbouncer 우회)
+  // directUrl = env("DIRECT_URL")
+}
+
+// ─── Users ──────────────────────────────────────────────────
+model User {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone       String?   @unique @db.VarChar(20)
+  name        String?   @db.VarChar(50)
+  role        String?   @db.VarChar(10)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  workplaces        UserWorkplace[]
+  attendances       Attendance[]
+  eventLogs         EventLog[]
+  refreshTokens     RefreshToken[]
+
+  @@map("users")
+}
+
+// ─── Workplaces ─────────────────────────────────────────────
+model Workplace {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId     String    @db.Uuid @map("owner_id")
+  name        String    @db.VarChar(100)
+  gpsLat      Decimal?  @db.Decimal(10, 7) @map("gps_lat")
+  gpsLng      Decimal?  @db.Decimal(10, 7) @map("gps_lng")
+  wifiSsid    String?   @db.VarChar(64) @map("wifi_ssid")
+  inviteCode  String?   @unique @db.VarChar(20) @map("invite_code")
+  industryCode String?  @db.VarChar(20) @map("industry_code")
+  regionCode  String?   @db.VarChar(10) @map("region_code")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  staff       UserWorkplace[]
+  attendances Attendance[]
+
+  @@map("workplaces")
+}
+
+// ─── UserWorkplaces ─────────────────────────────────────────
+model UserWorkplace {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @db.Uuid @map("user_id")
+  workplaceId String    @db.Uuid @map("workplace_id")
+  hourlyWage  Int       @default(10320) @map("hourly_wage")
+  position    String?   @db.VarChar(50)
+  status      String    @default("active") @db.VarChar(20)
+  joinDate    DateTime? @default(now()) @map("join_date") @db.Date
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workplace   Workplace @relation(fields: [workplaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workplaceId])
+  @@map("user_workplaces")
+}
+
+// ─── Attendance ─────────────────────────────────────────────
+model Attendance {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @db.Uuid @map("user_id")
+  workplaceId String    @db.Uuid @map("workplace_id")
+  clockIn     DateTime? @map("clock_in")
+  clockOut    DateTime? @map("clock_out")
+  workMinutes Int       @default(0) @map("work_minutes")
+  breakMinutes Int      @default(60) @map("break_minutes")
+  netMinutes  Int?      @map("net_minutes")
+  status      String    @default("PENDING") @db.VarChar(20)
+  date        DateTime  @default(now()) @db.Date
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workplace   Workplace @relation(fields: [workplaceId], references: [id], onDelete: Cascade)
+
+  @@map("attendance")
+}
+
+// ─── EventLog (2-5) ─────────────────────────────────────────
+// 필드명: eventType (type 아님), payload: Json (description 아님)
+enum EventType {
+  WORK_CONFIRMED
+  WORK_SUBMITTED
+  WORK_APPROVED
+  SETTLEMENT_SHARED
+  FREELANCER_CREATED
+  CONTRACT_SIGNED
+  RATE_CONFIRM_SENT
+}
+
+model EventLog {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventType   EventType @map("event_type")
+  userId      String?   @db.Uuid @map("user_id")
+  payload     Json      @default("{}")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("event_logs")
+}
+
+// ─── RefreshToken ────────────────────────────────────────────
+model RefreshToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @db.Uuid @map("user_id")
+  token       String    @unique
+  expiresAt   DateTime  @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}

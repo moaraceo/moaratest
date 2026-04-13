@@ -45,6 +45,7 @@ interface AttendanceContextType {
   isLoaded: boolean;
   clockIn: (staffName: string, staffInitial: string, workplaceId: string) => void;
   clockOut: (recordId: string) => void;
+  clockOutWithBreak: (recordId: string, clockOutTime: string, breakMinutes: number) => void;
   /** 특정 사업장의 기록만 필터 */
   getRecordsByWorkplace: (workplaceId: string) => AttendanceRecord[];
   approveRecord: (recordId: string) => void;
@@ -230,7 +231,32 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
             ...record,
             clockOut: clockOutTime,
             workMinutes,
-            status: "PENDING", // 퇴근해도 PENDING 상태 유지 (승인 필요)
+            status: "PENDING",
+          };
+        }
+        return record;
+      }),
+    );
+  };
+
+  // 퇴근 + 휴게시간 일괄 기록 (break_select 제출 시 사용)
+  const clockOutWithBreak = (
+    recordId: string,
+    clockOutTime: string,
+    breakMinutes: number,
+  ) => {
+    setRecords((prev) =>
+      prev.map((record) => {
+        if (record.id === recordId && record.clockIn) {
+          const workMinutes = calculateWorkMinutes(record.clockIn, clockOutTime);
+          const actualWorkMinutes = Math.max(0, workMinutes - breakMinutes);
+          return {
+            ...record,
+            clockOut: clockOutTime,
+            workMinutes,
+            breakMinutes,
+            actualWorkMinutes,
+            status: "PENDING",
           };
         }
         return record;
@@ -294,6 +320,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     isLoaded,
     clockIn,
     clockOut,
+    clockOutWithBreak,
     approveRecord,
     rejectRecord,
     clearAllData,

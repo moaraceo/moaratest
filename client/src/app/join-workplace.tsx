@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -18,14 +19,14 @@ export default function JoinWorkplaceScreen() {
   const [success, setSuccess] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
-  const { joinByInviteCode } = useWorkplace();
+  const { joinByInviteCode, setCurrentWorkplace } = useWorkplace();
   const { staffList, addStaffToWorkplace } = useStaff();
 
   // 현재 로그인한 직원 (샘플: "김민지")
   const currentStaff =
     staffList.find((s) => s.name === "김민지") ?? staffList[0];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError("");
     if (code.trim().length !== 6) {
       setError("6자리 코드를 모두 입력해주세요.");
@@ -38,9 +39,14 @@ export default function JoinWorkplaceScreen() {
       return;
     }
 
-    // 성공 → 직원의 workplaceIds에 추가
-    if (currentStaff && result.workplace) {
-      addStaffToWorkplace(currentStaff.id, result.workplace.id);
+    if (result.workplace) {
+      // 직원의 workplaceIds에 추가
+      if (currentStaff) {
+        addStaffToWorkplace(currentStaff.id, result.workplace.id);
+      }
+      // 현재 사업장 설정 + 저장
+      setCurrentWorkplace(result.workplace.id);
+      await AsyncStorage.setItem("@moara:workplaceId", result.workplace.id);
       setSuccess(result.workplace.name);
     }
   };
@@ -57,7 +63,7 @@ export default function JoinWorkplaceScreen() {
           </Text>
           <TouchableOpacity
             style={styles.confirmButton}
-            onPress={() => router.back()}
+            onPress={() => router.replace("/staff-main")}
           >
             <Text style={styles.confirmButtonText}>확인</Text>
           </TouchableOpacity>

@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -131,10 +130,8 @@ export default function AttendanceDetailScreen() {
         <Text style={styles.headerTitle}>근태 내역 상세</Text>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* Card Content Area */}
+      <View style={styles.cardContent}>
         {/* Employee Info Card */}
         <View style={styles.employeeCard}>
           <View style={styles.employeeHeader}>
@@ -291,7 +288,7 @@ export default function AttendanceDetailScreen() {
             })
           )}
         </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -331,7 +328,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
-  scrollView: {
+  cardContent: {
     flex: 1,
     paddingHorizontal: 20,
   },

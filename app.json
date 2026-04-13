@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "client/assets/images/icon.png",
-    "scheme": "moara",
+    "scheme": "moara-test",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true

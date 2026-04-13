@@ -1,26 +1,52 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+    Alert,
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { borderRadius, colors, shadows, spacing } from "../../constants/theme";
+
+const API_URL = process.env["EXPO_PUBLIC_API_URL"] ?? "";
 
 export default function HomeScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleGetVerificationCode = () => {
-    // TODO: Implement verification code logic
-    console.log("인증번호 받기:", phoneNumber);
-    // Navigate to verification screen
-    router.replace("/verify");
+  const handleGetVerificationCode = async () => {
+    const trimmed = phoneNumber.trim().replace(/[^0-9]/g, "");
+    if (trimmed.length < 10) {
+      Alert.alert("오류", "올바른 휴대폰 번호를 입력해주세요.");
+      return;
+    }
+
+    setLoading(true);
+    const res = await fetch(`${API_URL}/auth/sms/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: trimmed }),
+    }).catch(() => null);
+    setLoading(false);
+
+    if (!res) {
+      Alert.alert("오류", "서버에 연결할 수 없습니다.");
+      return;
+    }
+
+    const body = await res.json() as { ok: boolean; error?: { message: string } };
+    if (!res.ok || !body.ok) {
+      Alert.alert("오류", body.error?.message ?? "발송 실패");
+      return;
+    }
+
+    router.push({ pathname: "/verify", params: { phoneNumber: trimmed } });
   };
 
   return (
@@ -50,11 +76,32 @@ export default function HomeScreen() {
           </View>
 
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, loading && { opacity: 0.6 }]}
             onPress={handleGetVerificationCode}
+            disabled={loading}
           >
-            <Text style={styles.buttonText}>인증번호 받기</Text>
+            <Text style={styles.buttonText}>
+              {loading ? "발송 중..." : "인증번호 받기"}
+            </Text>
           </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <View style={styles.linksContainer}>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => router.push("/find-phone")}
+            >
+              <Text style={styles.linkText}>휴대폰 번호 찾기</Text>
+            </TouchableOpacity>
+            <Text style={styles.linkSeparator}>|</Text>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => router.push("/email-login")}
+            >
+              <Text style={styles.linkText}>이메일 로그인</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
@@ -114,6 +161,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
+    alignItems: "center",
     ...shadows.button,
   },
   buttonText: {
@@ -129,5 +177,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text2,
     textAlign: "center",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 20,
+  },
+  linksContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  linkButton: {
+    paddingVertical: 8,
+  },
+  linkText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  linkSeparator: {
+    fontSize: 13,
+    color: "#D1D5DB",
+    marginHorizontal: 12,
   },
 });

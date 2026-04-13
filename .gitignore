@@ -43,5 +43,16 @@ app-example
 /ios
 /android
 
-# Claude
+# Claude Code
 .claude/
+.agents/
+skills-lock.json
+
+# Secrets
+backend/.env
+admin/.env.local
+
+# Build artifacts
+.next/
+admin/.next/
+backend/dist/

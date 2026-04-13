@@ -11,6 +11,16 @@ import React, {
 // 타입 정의
 // ─────────────────────────────────────────────
 
+export type IndustryCode =
+  | 'cafe'
+  | 'restaurant'
+  | 'bar'
+  | 'convenience'
+  | 'retail'
+  | 'academy'
+  | 'beauty'
+  | 'other';
+
 /** 사업장 타입 (사장 1명 : 사업장 N개 구조) */
 export type Workplace = {
   id: string;
@@ -20,6 +30,11 @@ export type Workplace = {
   inviteCode: string;  // 6자리 영숫자 (직원 초대용)
   inviteCodeExpiry: string; // ISO 8601, 생성 후 24시간 유효
   createdAt: string;
+  // 분석용 필드
+  industryCode: IndustryCode | null;
+  regionCode: string | null;   // 서버 역지오코딩으로 자동 생성
+  gpsLat: number | null;
+  gpsLng: number | null;
 };
 
 // ─────────────────────────────────────────────
@@ -43,6 +58,10 @@ const INITIAL_WORKPLACES: Workplace[] = [
     inviteCode: "A1B2C3",
     inviteCodeExpiry: makeExpiry(),
     createdAt: "2024.01.01",
+    industryCode: "cafe",
+    regionCode: "SEL-GN",
+    gpsLat: 37.5065,
+    gpsLng: 127.0536,
   },
   {
     id: "workplace-2",
@@ -52,6 +71,10 @@ const INITIAL_WORKPLACES: Workplace[] = [
     inviteCode: "D4E5F6",
     inviteCodeExpiry: makeExpiry(),
     createdAt: "2024.06.01",
+    industryCode: "cafe",
+    regionCode: "SEL-MP",
+    gpsLat: 37.5540,
+    gpsLng: 126.9230,
   },
 ];
 
@@ -78,8 +101,20 @@ interface WorkplaceContextType {
     workplace?: Workplace;
     error?: string;
   };
+  /** 사업장 정보 수정 */
+  updateWorkplace: (
+    workplaceId: string,
+    updates: Partial<Pick<Workplace, "name" | "address" | "industryCode">>,
+  ) => void;
   /** 새 사업장 추가 (사장님) */
-  addWorkplace: (name: string, address: string, ownerId: string) => Workplace;
+  addWorkplace: (
+    name: string,
+    address: string,
+    ownerId: string,
+    industryCode?: IndustryCode,
+    gpsLat?: number,
+    gpsLng?: number,
+  ) => Workplace;
 }
 
 // ─────────────────────────────────────────────
@@ -187,11 +222,24 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
     return { success: true, workplace };
   };
 
+  /** 사업장 정보 수정 */
+  const updateWorkplace = (
+    workplaceId: string,
+    updates: Partial<Pick<Workplace, "name" | "address" | "industryCode">>,
+  ) => {
+    setWorkplaces((prev) =>
+      prev.map((w) => (w.id === workplaceId ? { ...w, ...updates } : w)),
+    );
+  };
+
   /** 사장님이 새 사업장 추가 */
   const addWorkplace = (
     name: string,
     address: string,
     ownerId: string,
+    industryCode?: IndustryCode,
+    gpsLat?: number,
+    gpsLng?: number,
   ): Workplace => {
     const newWP: Workplace = {
       id: `workplace-${Date.now()}`,
@@ -204,6 +252,10 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
         .toLocaleDateString("ko-KR")
         .replace(/\. /g, ".")
         .replace(/\.$/, ""),
+      industryCode: industryCode ?? null,
+      regionCode: null,  // 서버 역지오코딩으로 채워짐
+      gpsLat: gpsLat ?? null,
+      gpsLng: gpsLng ?? null,
     };
     setWorkplaces((prev) => [...prev, newWP]);
     return newWP;
@@ -221,6 +273,7 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
         getStaffWorkplaces,
         generateInviteCode,
         joinByInviteCode,
+        updateWorkplace,
         addWorkplace,
       }}
     >
