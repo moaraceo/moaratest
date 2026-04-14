@@ -35,7 +35,6 @@ export default function StaffManageScreen() {
   const {
     staffList,
     updateStaff,
-    rejoinStaff,
     getActiveStaff,
     getResignedStaff,
   } = useStaff();
@@ -47,16 +46,16 @@ export default function StaffManageScreen() {
   // 초대 코드 상태
   const currentWorkplace = workplaces.find((w) => w.id === currentWorkplaceId) ?? workplaces[0];
   const [expiryText, setExpiryText] = useState(() =>
-    currentWorkplace ? formatExpiry(currentWorkplace.inviteCodeExpiry) : "",
+    currentWorkplace ? formatExpiry(currentWorkplace.invite_code_expiry) : "",
   );
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   useEffect(() => {
     if (!currentWorkplace) return;
-    setExpiryText(formatExpiry(currentWorkplace.inviteCodeExpiry));
-    const id = setInterval(() => setExpiryText(formatExpiry(currentWorkplace.inviteCodeExpiry)), 60000);
+    setExpiryText(formatExpiry(currentWorkplace.invite_code_expiry));
+    const id = setInterval(() => setExpiryText(formatExpiry(currentWorkplace.invite_code_expiry)), 60000);
     return () => clearInterval(id);
-  }, [currentWorkplace?.inviteCodeExpiry]);
+  }, [currentWorkplace?.invite_code_expiry]);
 
   const handleRegenerate = () => {
     if (!currentWorkplace) return;
@@ -68,7 +67,7 @@ export default function StaffManageScreen() {
   const handleShare = async () => {
     if (!currentWorkplace) return;
     await Share.share({
-      message: `[모아라] ${currentWorkplace.name} 초대 코드: ${currentWorkplace.inviteCode}\n앱에서 '사업장 참여하기'를 선택하고 코드를 입력해주세요. (24시간 유효)`,
+      message: `[모아라] ${currentWorkplace.name} 초대 코드: ${currentWorkplace.invite_code}\n앱에서 '사업장 참여하기'를 선택하고 코드를 입력해주세요. (24시간 유효)`,
     });
   };
 
@@ -141,11 +140,10 @@ export default function StaffManageScreen() {
       effectiveDate = customEffectiveDate || getTodayDateStr();
     }
 
-    updateStaff(editingStaff.id, {
+    updateStaff(currentWorkplaceId ?? "", editingStaff.userId, {
       position: editingStaff.position,
       hourlyWage: editingStaff.hourlyWage,
       status: editingStaff.status,
-      wageEffectiveDate: effectiveDate,
     });
 
     setToast("");
@@ -161,7 +159,7 @@ export default function StaffManageScreen() {
       {
         text: "재입사",
         onPress: () => {
-          rejoinStaff(staff.id);
+          updateStaff(currentWorkplaceId ?? "", staff.userId, { status: "active" });
           setToast("");
           setTimeout(() => setToast("재입사 처리되었습니다."), 0);
         },
@@ -259,7 +257,7 @@ export default function StaffManageScreen() {
             <View style={styles.codeCard}>
               <Text style={styles.codeLabel}>초대 코드</Text>
               <View style={styles.codeRow}>
-                {(currentWorkplace?.inviteCode ?? "------").split("").map((ch, i) => (
+                {(currentWorkplace?.invite_code ?? "------").split("").map((ch, i) => (
                   <View key={i} style={styles.codeBox}>
                     <Text style={styles.codeChar}>{ch}</Text>
                   </View>

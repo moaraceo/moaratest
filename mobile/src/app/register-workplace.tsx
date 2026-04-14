@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
-import { useAuth } from "./store/authStore";
 import { IndustryCode, useWorkplace } from "./store/workplaceStore";
 
 // ─────────────────────────────────────────────
@@ -39,7 +38,6 @@ const INDUSTRY_OPTIONS: { code: IndustryCode; label: string }[] = [
 export default function RegisterWorkplaceScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isAdditional = mode === "add";
-  const { user } = useAuth();
   const { addWorkplace, setCurrentWorkplace } = useWorkplace();
 
   const [name, setName] = useState("");
@@ -86,10 +84,9 @@ export default function RegisterWorkplaceScreen() {
       // GPS 실패 시 null로 등록 (역지오코딩은 서버에서 처리)
     }
 
-    const newWP = addWorkplace(
+    const newWP = await addWorkplace(
       name.trim(),
       address.trim(),
-      user?.id ?? "owner-1",
       selectedIndustry!,
       gpsLat,
       gpsLng,

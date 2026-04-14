@@ -150,4 +150,52 @@ router.patch('/:id/confirm', async (req: AuthRequest, res) => {
   res.json({ ok: true, data })
 })
 
+// PATCH /attendance/:id/reject — 근태 반려 (OWNER 전용)
+router.patch('/:id/reject', async (req: AuthRequest, res) => {
+  if (req.user!.role !== 'owner') {
+    res.status(403).json({ ok: false, error: { message: '사업주만 반려할 수 있습니다.' } })
+    return
+  }
+
+  const { id } = req.params
+  const ownerId = req.user!.sub
+
+  const { data: attendance } = await supabaseAdmin
+    .from('attendance')
+    .select('workplace_id')
+    .eq('id', id)
+    .single()
+
+  if (!attendance) {
+    res.status(404).json({ ok: false, error: { message: '근태 기록을 찾을 수 없습니다.' } })
+    return
+  }
+
+  const { data: workplace } = await supabaseAdmin
+    .from('workplaces')
+    .select('id')
+    .eq('id', attendance.workplace_id)
+    .eq('owner_id', ownerId)
+    .single()
+
+  if (!workplace) {
+    res.status(403).json({ ok: false, error: { message: '해당 사업장의 사업주가 아닙니다.' } })
+    return
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('attendance')
+    .update({ status: 'REJECTED' })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    res.status(500).json({ ok: false, error: { message: error.message } })
+    return
+  }
+
+  res.json({ ok: true, data })
+})
+
 export default router

@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -55,11 +54,10 @@ export default function InviteCodeScreen() {
     setError("");
 
     try {
-      const result = joinByInviteCode(code);
+      const result = await joinByInviteCode(code);
 
       if (result.success && result.workplace) {
         setCurrentWorkplace(result.workplace.id);
-        await AsyncStorage.setItem("@moara:workplaceId", result.workplace.id);
         router.replace("/staff-main");
       } else {
         setError(result.error || "유효하지 않은 초대 코드예요");

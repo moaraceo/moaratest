@@ -11,17 +11,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import StaffTabBar from "./components/common/StaffTabBar";
+import { useAuth } from "./store/authStore";
 import { useStaff } from "./store/staffStore";
 import { useWorkplace } from "./store/workplaceStore";
 
 export default function ProfileScreen() {
+  const { user, signOut } = useAuth();
   const { staffList } = useStaff();
-  const { getStaffWorkplaces, currentWorkplaceId, setCurrentWorkplace } =
-    useWorkplace();
+  const { workplaces, currentWorkplaceId, setCurrentWorkplace } = useWorkplace();
 
   const currentStaff =
-    staffList.find((s) => s.name === "김민지") ?? staffList[0];
-  const myWorkplaces = getStaffWorkplaces(currentStaff?.workplaceIds ?? []);
+    staffList.find((s) => s.userId === user?.id) ?? staffList[0];
+  // 직원이 속한 사업장 — workplaceStore는 이미 이 유저 소속 사업장만 로드함
+  const myWorkplaces = workplaces;
 
   const handleEdit = () => {
     Alert.alert("편집", "프로필 편집 기능은 준비 중입니다.");
@@ -32,8 +34,9 @@ export default function ProfileScreen() {
       { text: "취소", style: "cancel" },
       {
         text: "로그아웃",
-        onPress: () => {
-          router.push("/");
+        onPress: async () => {
+          await signOut();
+          router.replace("/");
         },
       },
     ]);
@@ -59,10 +62,10 @@ export default function ProfileScreen() {
         <View style={styles.profileCard}>
           <View style={styles.profileTopRow}>
             <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>김</Text>
+              <Text style={styles.profileAvatarText}>{user?.name?.[0] ?? "?"}</Text>
             </View>
             <View style={styles.profileNameCol}>
-              <Text style={styles.profileName}>김민지</Text>
+              <Text style={styles.profileName}>{user?.name ?? "알 수 없음"}</Text>
               <View style={styles.roleBadge}>
                 <Text style={styles.roleBadgeText}>직원</Text>
               </View>

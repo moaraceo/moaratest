@@ -34,14 +34,14 @@ export default function WorkplaceSettingsScreen() {
 
   const [name, setName]       = useState(workplace?.name ?? "");
   const [address, setAddress] = useState(workplace?.address ?? "");
-  const [industry, setIndustry] = useState<IndustryCode | null>(workplace?.industryCode ?? null);
+  const [industry, setIndustry] = useState<IndustryCode | null>(workplace?.industry_code ?? null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (workplace) {
       setName(workplace.name);
       setAddress(workplace.address);
-      setIndustry(workplace.industryCode);
+      setIndustry(workplace.industry_code);
     }
   }, [workplace?.id]);
 
@@ -50,7 +50,7 @@ export default function WorkplaceSettingsScreen() {
   const isDirty =
     name.trim() !== workplace.name ||
     address.trim() !== workplace.address ||
-    industry !== workplace.industryCode;
+    industry !== workplace.industry_code;
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -61,7 +61,7 @@ export default function WorkplaceSettingsScreen() {
     updateWorkplace(targetId, {
       name: name.trim(),
       address: address.trim(),
-      industryCode: industry,
+      industry_code: industry,
     });
     await new Promise((r) => setTimeout(r, 300));
     setIsSaving(false);
@@ -144,21 +144,21 @@ export default function WorkplaceSettingsScreen() {
         </View>
 
         {/* ── GPS 정보 ── */}
-        {(workplace.gpsLat != null) && (
+        {(workplace.gps_lat != null) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>위치 정보</Text>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>위도</Text>
-              <Text style={styles.infoValue}>{workplace.gpsLat?.toFixed(6)}</Text>
+              <Text style={styles.infoValue}>{workplace.gps_lat?.toFixed(6)}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>경도</Text>
-              <Text style={styles.infoValue}>{workplace.gpsLng?.toFixed(6)}</Text>
+              <Text style={styles.infoValue}>{workplace.gps_lng?.toFixed(6)}</Text>
             </View>
-            {workplace.regionCode && (
+            {workplace.region_code && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>지역 코드</Text>
-                <Text style={styles.infoValue}>{workplace.regionCode}</Text>
+                <Text style={styles.infoValue}>{workplace.region_code}</Text>
               </View>
             )}
           </View>
@@ -210,7 +210,7 @@ export default function WorkplaceSettingsScreen() {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>등록일</Text>
-            <Text style={styles.infoValue}>{workplace.createdAt}</Text>
+            <Text style={styles.infoValue}>{workplace.created_at}</Text>
           </View>
         </View>
 

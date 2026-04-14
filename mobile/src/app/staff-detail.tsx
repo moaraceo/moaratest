@@ -19,7 +19,7 @@ export default function StaffDetailScreen() {
   const router = useRouter();
   const { staffId } = useLocalSearchParams();
   const { records } = useAttendance();
-  const { staffList, rejoinStaff } = useStaff();
+  const { staffList, updateStaff } = useStaff();
 
   const [staff, setStaff] = useState<any>(null);
 
@@ -137,7 +137,7 @@ export default function StaffDetailScreen() {
       {
         text: "재입사",
         onPress: () => {
-          rejoinStaff(staff.id);
+          updateStaff(staff.workplaceId, staff.userId, { status: "active" });
           Alert.alert("완료", "재입사 처리되었습니다.");
         },
       },

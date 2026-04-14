@@ -33,25 +33,25 @@ export default function OwnerInviteScreen() {
 
   useEffect(() => {
     if (!workplace) return;
-    setExpiryText(formatExpiry(workplace.inviteCodeExpiry));
+    setExpiryText(formatExpiry(workplace.invite_code_expiry));
     const interval = setInterval(() => {
-      setExpiryText(formatExpiry(workplace.inviteCodeExpiry));
+      setExpiryText(formatExpiry(workplace.invite_code_expiry));
     }, 60000);
     return () => clearInterval(interval);
-  }, [workplace?.inviteCodeExpiry]);
+  }, [workplace?.invite_code_expiry]);
 
   if (!workplace) return <ActivityIndicator style={{ flex: 1 }} />;
 
-  const handleRegenerate = () => {
+  const handleRegenerate = async () => {
     setIsRegenerating(true);
-    generateInviteCode(workplace.id);
+    await generateInviteCode(workplace.id);
     setTimeout(() => setIsRegenerating(false), 300);
   };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `[모아라] ${workplace.name} 초대 코드: ${workplace.inviteCode}\n앱에서 '사업장 참여하기'를 선택하고 코드를 입력해주세요.\n(24시간 유효)`,
+        message: `[모아라] ${workplace.name} 초대 코드: ${workplace.invite_code}\n앱에서 '사업장 참여하기'를 선택하고 코드를 입력해주세요.\n(24시간 유효)`,
       });
     } catch {
       // 취소 시 무시
@@ -59,7 +59,7 @@ export default function OwnerInviteScreen() {
   };
 
   // 코드를 6글자 배열로 나눠 표시
-  const codeChars = workplace.inviteCode.split("");
+  const codeChars = workplace.invite_code.split("");
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>

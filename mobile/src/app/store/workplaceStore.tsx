@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
   ReactNode,
@@ -8,178 +7,86 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { useAuth } from "./authStore";
+import { apiFetch } from "../utils/api";
 
 // ─────────────────────────────────────────────
 // 타입 정의
 // ─────────────────────────────────────────────
 
 export type IndustryCode =
-  | 'cafe'
-  | 'restaurant'
-  | 'bar'
-  | 'convenience'
-  | 'retail'
-  | 'academy'
-  | 'beauty'
-  | 'other';
+  | 'cafe' | 'restaurant' | 'bar' | 'convenience'
+  | 'retail' | 'academy' | 'beauty' | 'other';
 
-/** 사업장 타입 (사장 1명 : 사업장 N개 구조) */
 export type Workplace = {
   id: string;
-  name: string;        // "OO카페 강남점"
+  name: string;
   address: string;
-  ownerId: string;     // FK → owner (1:N 설계 핵심)
-  inviteCode: string;  // 6자리 영숫자 (직원 초대용)
-  inviteCodeExpiry: string; // ISO 8601, 생성 후 24시간 유효
-  createdAt: string;
-  // 분석용 필드
-  industryCode: IndustryCode | null;
-  regionCode: string | null;   // 서버 역지오코딩으로 자동 생성
-  gpsLat: number | null;
-  gpsLng: number | null;
+  owner_id: string;
+  invite_code: string;
+  invite_code_expiry: string;
+  created_at: string;
+  industry_code: IndustryCode | null;
+  region_code: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
 };
-
-// ─────────────────────────────────────────────
-// 저장 키
-// ─────────────────────────────────────────────
-const WORKPLACES_KEY = "moara_workplaces";
-const CURRENT_WP_KEY = "moara_current_workplace_id";
-
-// ─────────────────────────────────────────────
-// 샘플 데이터 (카페 2개 운영 사장님 시나리오)
-// ─────────────────────────────────────────────
-const makeExpiry = () =>
-  new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-const INITIAL_WORKPLACES: Workplace[] = [
-  {
-    id: "workplace-1",
-    name: "OO카페 강남점",
-    address: "서울시 강남구 테헤란로 123",
-    ownerId: "owner-1",
-    inviteCode: "A1B2C3",
-    inviteCodeExpiry: makeExpiry(),
-    createdAt: "2024.01.01",
-    industryCode: "cafe",
-    regionCode: "SEL-GN",
-    gpsLat: 37.5065,
-    gpsLng: 127.0536,
-  },
-  {
-    id: "workplace-2",
-    name: "OO카페 홍대점",
-    address: "서울시 마포구 와우산로 45",
-    ownerId: "owner-1",
-    inviteCode: "D4E5F6",
-    inviteCodeExpiry: makeExpiry(),
-    createdAt: "2024.06.01",
-    industryCode: "cafe",
-    regionCode: "SEL-MP",
-    gpsLat: 37.5540,
-    gpsLng: 126.9230,
-  },
-];
 
 // ─────────────────────────────────────────────
 // Context 타입
 // ─────────────────────────────────────────────
 interface WorkplaceContextType {
   workplaces: Workplace[];
-  currentWorkplaceId: string;
+  currentWorkplaceId: string | null;
   isLoaded: boolean;
-  /** 현재 선택된 사업장 변경 (사장/직원 공통) */
   setCurrentWorkplace: (id: string) => void;
-  /** 현재 사업장 객체 반환 */
   getCurrentWorkplace: () => Workplace | null;
-  /** 사장님 소유 사업장 목록 (ownerId 기준) */
-  getOwnerWorkplaces: (ownerId: string) => Workplace[];
-  /** 직원이 속한 사업장 목록 (workplaceIds 배열 기준) */
-  getStaffWorkplaces: (workplaceIds: string[]) => Workplace[];
-  /** 초대 코드 재발급 (6자리, 24시간 유효) */
-  generateInviteCode: (workplaceId: string) => string;
-  /** 초대 코드로 사업장 조회·검증 */
-  joinByInviteCode: (code: string) => {
-    success: boolean;
-    workplace?: Workplace;
-    error?: string;
-  };
-  /** 사업장 정보 수정 */
-  updateWorkplace: (
-    workplaceId: string,
-    updates: Partial<Pick<Workplace, "name" | "address" | "industryCode">>,
-  ) => void;
-  /** 새 사업장 추가 (사장님) */
-  addWorkplace: (
-    name: string,
-    address: string,
-    ownerId: string,
-    industryCode?: IndustryCode,
-    gpsLat?: number,
-    gpsLng?: number,
-  ) => Workplace;
+  refreshWorkplaces: () => Promise<void>;
+  generateInviteCode: (workplaceId: string) => Promise<string>;
+  joinByInviteCode: (code: string) => Promise<{ success: boolean; workplace?: Workplace; error?: string }>;
+  updateWorkplace: (workplaceId: string, updates: Partial<Pick<Workplace, "name" | "address" | "industry_code">>) => Promise<void>;
+  addWorkplace: (name: string, address: string, industryCode?: IndustryCode, gpsLat?: number, gpsLng?: number) => Promise<Workplace>;
 }
 
-// ─────────────────────────────────────────────
-// 내부 유틸: 6자리 코드 생성
-// 혼동되는 O, I, 0, 1 제외
-// ─────────────────────────────────────────────
-const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-function randomCode(len = 6): string {
-  let code = "";
-  for (let i = 0; i < len; i++) {
-    code += CHARS[Math.floor(Math.random() * CHARS.length)];
-  }
-  return code;
-}
+const WorkplaceContext = createContext<WorkplaceContextType | undefined>(undefined);
 
 // ─────────────────────────────────────────────
-// Context & Provider
+// Provider
 // ─────────────────────────────────────────────
-const WorkplaceContext = createContext<WorkplaceContextType | undefined>(
-  undefined,
-);
-
 export function WorkplaceProvider({ children }: { children: ReactNode }) {
+  const { accessToken, user } = useAuth();
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
-  const [currentWorkplaceId, setCurrentWorkplaceIdState] = useState(
-    "workplace-1",
-  );
+  const [currentWorkplaceId, setCurrentWorkplaceIdState] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 앱 시작 시 AsyncStorage 로드
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [savedWP, savedCurrent] = await Promise.all([
-          AsyncStorage.getItem(WORKPLACES_KEY),
-          AsyncStorage.getItem(CURRENT_WP_KEY),
-        ]);
-        setWorkplaces(
-          savedWP ? (JSON.parse(savedWP) as Workplace[]) : INITIAL_WORKPLACES,
-        );
-        if (savedCurrent) setCurrentWorkplaceIdState(savedCurrent);
-      } catch {
-        setWorkplaces(INITIAL_WORKPLACES);
-      } finally {
-        setIsLoaded(true);
+  const refreshWorkplaces = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const data = await apiFetch<Workplace[]>("/workplaces", accessToken);
+      setWorkplaces(data);
+      if (data.length > 0 && !currentWorkplaceId) {
+        setCurrentWorkplaceIdState(data[0]!.id);
       }
-    };
-    load();
-  }, []);
+    } catch (e) {
+      console.error("사업장 목록 불러오기 실패:", e);
+    } finally {
+      setIsLoaded(true);
+    }
+  }, [accessToken, currentWorkplaceId]);
 
-  // 사업장 목록 변경 시 자동 저장
+  // 로그인 후 자동 로드
   useEffect(() => {
-    if (!isLoaded) return;
-    AsyncStorage.setItem(WORKPLACES_KEY, JSON.stringify(workplaces)).catch(
-      console.error,
-    );
-  }, [workplaces, isLoaded]);
-
-  // ── Actions ──────────────────────────────────
+    if (user && accessToken) {
+      refreshWorkplaces();
+    } else {
+      setWorkplaces([]);
+      setCurrentWorkplaceIdState(null);
+      setIsLoaded(false);
+    }
+  }, [user?.id, accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setCurrentWorkplace = useCallback((id: string) => {
     setCurrentWorkplaceIdState(id);
-    AsyncStorage.setItem(CURRENT_WP_KEY, id).catch(console.error);
   }, []);
 
   const getCurrentWorkplace = useCallback(
@@ -187,70 +94,57 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
     [workplaces, currentWorkplaceId],
   );
 
-  const getOwnerWorkplaces = useCallback(
-    (ownerId: string) => workplaces.filter((w) => w.ownerId === ownerId),
-    [workplaces],
-  );
-
-  const getStaffWorkplaces = useCallback(
-    (workplaceIds: string[]) => workplaces.filter((w) => workplaceIds.includes(w.id)),
-    [workplaces],
-  );
-
-  const generateInviteCode = useCallback((workplaceId: string): string => {
-    const code = randomCode();
-    const expiry = makeExpiry();
-    setWorkplaces((prev) =>
-      prev.map((w) => w.id === workplaceId ? { ...w, inviteCode: code, inviteCodeExpiry: expiry } : w),
+  const generateInviteCode = useCallback(async (workplaceId: string): Promise<string> => {
+    const data = await apiFetch<{ invite_code: string }>(
+      `/workplaces/${workplaceId}/invite-code`,
+      accessToken,
+      { method: "POST" },
     );
-    return code;
-  }, []);
+    await refreshWorkplaces();
+    return data.invite_code;
+  }, [accessToken, refreshWorkplaces]);
 
-  const joinByInviteCode = useCallback((
+  const joinByInviteCode = useCallback(async (
     code: string,
-  ): { success: boolean; workplace?: Workplace; error?: string } => {
-    const upper = code.toUpperCase().trim();
-    const workplace = workplaces.find((w) => w.inviteCode === upper);
-    if (!workplace) return { success: false, error: "유효하지 않은 초대 코드예요." };
-    if (new Date(workplace.inviteCodeExpiry) < new Date()) {
-      return { success: false, error: "초대 코드가 만료됐어요. 사장님께 새 코드를 요청해주세요." };
+  ): Promise<{ success: boolean; workplace?: Workplace; error?: string }> => {
+    try {
+      const data = await apiFetch<{ workplace: Workplace; already_member: boolean }>(
+        "/workplaces/join",
+        accessToken,
+        { method: "POST", body: JSON.stringify({ invite_code: code }) },
+      );
+      await refreshWorkplaces();
+      return { success: true, workplace: data.workplace };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "오류가 발생했습니다." };
     }
-    return { success: true, workplace };
-  }, [workplaces]);
+  }, [accessToken, refreshWorkplaces]);
 
-  const updateWorkplace = useCallback((
+  const updateWorkplace = useCallback(async (
     workplaceId: string,
-    updates: Partial<Pick<Workplace, "name" | "address" | "industryCode">>,
+    updates: Partial<Pick<Workplace, "name" | "address" | "industry_code">>,
   ) => {
-    setWorkplaces((prev) =>
-      prev.map((w) => (w.id === workplaceId ? { ...w, ...updates } : w)),
-    );
-  }, []);
+    await apiFetch(`/workplaces/${workplaceId}`, accessToken, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+    await refreshWorkplaces();
+  }, [accessToken, refreshWorkplaces]);
 
-  const addWorkplace = useCallback((
+  const addWorkplace = useCallback(async (
     name: string,
     address: string,
-    ownerId: string,
     industryCode?: IndustryCode,
     gpsLat?: number,
     gpsLng?: number,
-  ): Workplace => {
-    const newWP: Workplace = {
-      id: `workplace-${Date.now()}`,
-      name,
-      address,
-      ownerId,
-      inviteCode: randomCode(),
-      inviteCodeExpiry: makeExpiry(),
-      createdAt: new Date().toLocaleDateString("ko-KR").replace(/\. /g, ".").replace(/\.$/, ""),
-      industryCode: industryCode ?? null,
-      regionCode: null,
-      gpsLat: gpsLat ?? null,
-      gpsLng: gpsLng ?? null,
-    };
-    setWorkplaces((prev) => [...prev, newWP]);
-    return newWP;
-  }, []);
+  ): Promise<Workplace> => {
+    const data = await apiFetch<Workplace>("/workplaces", accessToken, {
+      method: "POST",
+      body: JSON.stringify({ name, address, industry_code: industryCode, gps_lat: gpsLat, gps_lng: gpsLng }),
+    });
+    await refreshWorkplaces();
+    return data;
+  }, [accessToken, refreshWorkplaces]);
 
   const value = useMemo(() => ({
     workplaces,
@@ -258,15 +152,14 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
     isLoaded,
     setCurrentWorkplace,
     getCurrentWorkplace,
-    getOwnerWorkplaces,
-    getStaffWorkplaces,
+    refreshWorkplaces,
     generateInviteCode,
     joinByInviteCode,
     updateWorkplace,
     addWorkplace,
   }), [
     workplaces, currentWorkplaceId, isLoaded,
-    setCurrentWorkplace, getCurrentWorkplace, getOwnerWorkplaces, getStaffWorkplaces,
+    setCurrentWorkplace, getCurrentWorkplace, refreshWorkplaces,
     generateInviteCode, joinByInviteCode, updateWorkplace, addWorkplace,
   ]);
 
@@ -279,8 +172,6 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
 
 export function useWorkplace() {
   const context = useContext(WorkplaceContext);
-  if (!context) {
-    throw new Error("useWorkplace must be used within a WorkplaceProvider");
-  }
+  if (!context) throw new Error("useWorkplace must be used within a WorkplaceProvider");
   return context;
 }

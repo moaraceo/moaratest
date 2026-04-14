@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -10,8 +9,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
-import { useAuth } from "./store/authStore";
-import { useStaff } from "./store/staffStore";
 import { useWorkplace } from "./store/workplaceStore";
 
 export default function JoinWorkplaceScreen() {
@@ -23,13 +20,7 @@ export default function JoinWorkplaceScreen() {
   const [success, setSuccess] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
-  const { user } = useAuth();
   const { joinByInviteCode, setCurrentWorkplace } = useWorkplace();
-  const { staffList, addStaffToWorkplace } = useStaff();
-
-  // 현재 로그인한 직원 (ID 또는 이름으로 매핑)
-  const currentStaff =
-    staffList.find((s) => s.id === user?.id) ?? staffList[0];
 
   const handleSubmit = async () => {
     setError("");
@@ -38,20 +29,14 @@ export default function JoinWorkplaceScreen() {
       return;
     }
 
-    const result = joinByInviteCode(code);
+    const result = await joinByInviteCode(code);
     if (!result.success) {
       setError(result.error ?? "오류가 발생했어요.");
       return;
     }
 
     if (result.workplace) {
-      // 직원의 workplaceIds에 추가
-      if (currentStaff) {
-        addStaffToWorkplace(currentStaff.id, result.workplace.id);
-      }
-      // 현재 사업장 설정 + 저장
       setCurrentWorkplace(result.workplace.id);
-      await AsyncStorage.setItem("@moara:workplaceId", result.workplace.id);
       setSuccess(result.workplace.name);
     }
   };

@@ -5,6 +5,7 @@ import { config } from './config/index.js'
 import authRouter from './routes/auth.js'
 import attendanceRouter from './routes/attendance.js'
 import payrollRouter from './routes/payroll.js'
+import workplacesRouter from './routes/workplaces.js'
 
 const app = express()
 
@@ -35,6 +36,7 @@ app.get('/', (_req, res) => {
 app.use('/auth', authRouter)
 app.use('/attendance', attendanceRouter)
 app.use('/payroll', payrollRouter)
+app.use('/workplaces', workplacesRouter)
 
 // ─── 서버 시작 ──────────────────────────────────────────────
 app.listen(config.port, () => {

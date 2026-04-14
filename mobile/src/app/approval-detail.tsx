@@ -95,8 +95,8 @@ export default function ApprovalDetailScreen() {
       { text: "취소", style: "cancel" },
       {
         text: "반려",
-        onPress: () => {
-          rejectRecord(recordId);
+        onPress: async () => {
+          await rejectRecord(recordId);
           Alert.alert("완료", "근태가 반려되었습니다.");
           router.back();
         },

@@ -1,154 +1,120 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
-    createContext,
-    ReactNode,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 import { CURRENT_MINIMUM_WAGE } from "../constants/minimumWage";
+import { useAuth } from "./authStore";
+import { apiFetch } from "../utils/api";
 
-// 직원 타입 정의
+// ─────────────────────────────────────────────
+// 타입 (백엔드 user_workplaces 응답 기준)
+// ─────────────────────────────────────────────
 export type StaffMember = {
-  id: string;
+  id: string;           // user_workplaces.id
+  userId: string;       // users.id
   name: string;
-  initial: string; // 성 첫글자
-  position: string; // 직책
-  hourlyWage: number; // 시급
+  initial: string;
+  position: string;
+  hourlyWage: number;
   status: "active" | "probation" | "resigned";
-  joinDate: string; // 입사일
-  resignDate?: string; // 퇴사일 (없으면 undefined)
-  rejoinDate?: string; // 재입사일 (없으면 undefined)
-  wageEffectiveDate?: string; // 시급 적용 시점
-  /**
-   * 소속 사업장 ID 목록 (1:N — 직원이 여러 사업장에서 근무 가능)
-   * 초대 코드로 참여할 때 마다 여기에 추가됨
-   */
-  workplaceIds: string[];
+  joinDate: string;
+  resignDate?: string;
+  rejoinDate?: string;
+  wageEffectiveDate?: string;
+  workplaceId: string;
 };
 
-// 저장 키 상수
-const STAFF_STORAGE_KEY = "moara_staff_list";
-
-// 초기 샘플 데이터
-const INITIAL_STAFF_DATA: StaffMember[] = [
-  {
-    id: "1",
-    name: "김민지",
-    initial: "김",
-    position: "홀 서빙",
-    hourlyWage: Math.max(CURRENT_MINIMUM_WAGE, 10030),
-    status: "active",
-    joinDate: "2024.01.15",
-    workplaceIds: ["workplace-1", "workplace-2"], // 강남점 + 홍대점 근무
-  },
-  {
-    id: "2",
-    name: "박준혁",
-    initial: "박",
-    position: "주방 보조",
-    hourlyWage: Math.max(CURRENT_MINIMUM_WAGE, 10030),
-    status: "active",
-    joinDate: "2024.03.01",
-    workplaceIds: ["workplace-1"],
-  },
-  {
-    id: "3",
-    name: "이수연",
-    initial: "이",
-    position: "카운터",
-    hourlyWage: 10500,
-    status: "active",
-    joinDate: "2024.06.01",
-    workplaceIds: ["workplace-1"],
-  },
-  {
-    id: "4",
-    name: "최태양",
-    initial: "최",
-    position: "홀 서빙",
-    hourlyWage: Math.max(CURRENT_MINIMUM_WAGE, 10030),
-    status: "probation",
-    joinDate: "2025.02.01",
-    workplaceIds: ["workplace-1"],
-  },
-  {
-    id: "5",
-    name: "정수진",
-    initial: "정",
-    position: "주방 보조",
-    hourlyWage: Math.max(CURRENT_MINIMUM_WAGE, 10030),
-    status: "resigned",
-    joinDate: "2024.01.01",
-    resignDate: "2025.01.31",
-    workplaceIds: ["workplace-1"],
-  },
-];
-
-// Context 타입
 interface StaffContextType {
   staffList: StaffMember[];
   isLoaded: boolean;
-  updateStaff: (id: string, updates: Partial<StaffMember>) => void;
-  resignStaff: (id: string) => void;
-  rejoinStaff: (id: string) => void;
-  clearStaffData: () => Promise<void>;
+  refreshStaff: (workplaceId: string) => Promise<void>;
+  updateStaff: (workplaceId: string, userId: string, updates: { hourlyWage?: number; position?: string; status?: string }) => Promise<void>;
   getActiveStaff: () => StaffMember[];
   getResignedStaff: () => StaffMember[];
   isUnderMinimumWage: (hourlyWage: number) => boolean;
   getUnderWageStaff: () => StaffMember[];
-  /** 특정 직원을 새 사업장에 추가 (초대 코드 참여 후 호출) */
-  addStaffToWorkplace: (staffId: string, workplaceId: string) => void;
-  /** 사업장 기준 재직중 직원 필터 */
   getActiveStaffByWorkplace: (workplaceId: string) => StaffMember[];
 }
 
 const StaffContext = createContext<StaffContextType | undefined>(undefined);
 
-// Provider 컴포넌트
+// ─────────────────────────────────────────────
+// 백엔드 응답 → StaffMember 변환
+// ─────────────────────────────────────────────
+function mapRow(row: Record<string, any>): StaffMember {
+  const user = row.users ?? {};
+  const name: string = user.name ?? row.user_id ?? "알 수 없음";
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name,
+    initial: name[0] ?? "?",
+    position: row.position ?? "",
+    hourlyWage: row.hourly_wage ?? CURRENT_MINIMUM_WAGE,
+    status: row.status ?? "active",
+    joinDate: row.join_date ?? "",
+    resignDate: row.resign_date ?? undefined,
+    rejoinDate: row.rejoin_date ?? undefined,
+    wageEffectiveDate: row.wage_effective_date ?? undefined,
+    workplaceId: row.workplace_id,
+  };
+}
+
+// ─────────────────────────────────────────────
+// Provider
+// ─────────────────────────────────────────────
 export function StaffProvider({ children }: { children: ReactNode }) {
+  const { accessToken, user } = useAuth();
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 앱 시작 시 저장된 데이터 불러오기
-  useEffect(() => {
-    const loadStaff = async () => {
-      try {
-        const saved = await AsyncStorage.getItem(STAFF_STORAGE_KEY);
-        if (saved) {
-          setStaffList(JSON.parse(saved));
-        } else {
-          // 저장된 데이터가 없으면 샘플 데이터로 초기화
-          setStaffList(INITIAL_STAFF_DATA);
-        }
-      } catch (error) {
-        console.error("직원 데이터 불러오기 실패:", error);
-        setStaffList(INITIAL_STAFF_DATA); // 에러 시 샘플 데이터로 초기화
-      } finally {
-        setIsLoaded(true);
-      }
-    };
-    loadStaff();
-  }, []);
-
-  // 데이터 변경 시 자동 저장
-  useEffect(() => {
-    const saveStaff = async () => {
-      try {
-        await AsyncStorage.setItem(
-          STAFF_STORAGE_KEY,
-          JSON.stringify(staffList),
-        );
-      } catch (error) {
-        console.error("직원 데이터 저장 실패:", error);
-      }
-    };
-    if (isLoaded && staffList.length > 0) {
-      saveStaff();
+  const refreshStaff = useCallback(async (workplaceId: string) => {
+    if (!accessToken) return;
+    try {
+      const data = await apiFetch<Record<string, any>[]>(
+        `/workplaces/${workplaceId}/staff`,
+        accessToken,
+      );
+      // 기존 다른 사업장 데이터는 유지하고 이 사업장 데이터만 교체
+      setStaffList((prev) => {
+        const others = prev.filter((s) => s.workplaceId !== workplaceId);
+        return [...others, ...(data ?? []).map(mapRow)];
+      });
+    } catch (e) {
+      console.error("직원 목록 불러오기 실패:", e);
+    } finally {
+      setIsLoaded(true);
     }
-  }, [staffList, isLoaded]);
+  }, [accessToken]);
+
+  // 로그인 상태 초기화
+  useEffect(() => {
+    if (!user) {
+      setStaffList([]);
+      setIsLoaded(false);
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateStaff = useCallback(async (
+    workplaceId: string,
+    userId: string,
+    updates: { hourlyWage?: number; position?: string; status?: string },
+  ) => {
+    await apiFetch(`/workplaces/${workplaceId}/staff/${userId}`, accessToken, {
+      method: "PATCH",
+      body: JSON.stringify({
+        hourly_wage: updates.hourlyWage,
+        position: updates.position,
+        status: updates.status,
+      }),
+    });
+    await refreshStaff(workplaceId);
+  }, [accessToken, refreshStaff]);
 
   const isUnderMinimumWage = useCallback(
     (hourlyWage: number) => hourlyWage < CURRENT_MINIMUM_WAGE,
@@ -159,28 +125,6 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     () => staffList.filter((s) => s.status !== "resigned" && s.hourlyWage < CURRENT_MINIMUM_WAGE),
     [staffList],
   );
-
-  const updateStaff = useCallback((id: string, updates: Partial<StaffMember>) => {
-    setStaffList((prev) =>
-      prev.map((staff) => (staff.id === id ? { ...staff, ...updates } : staff)),
-    );
-  }, []);
-
-  const resignStaff = useCallback((id: string) => {
-    const today = new Date();
-    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
-    setStaffList((prev) =>
-      prev.map((s) => s.id === id ? { ...s, status: "resigned" as const, resignDate: dateStr } : s),
-    );
-  }, []);
-
-  const rejoinStaff = useCallback((id: string) => {
-    const today = new Date();
-    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
-    setStaffList((prev) =>
-      prev.map((s) => s.id === id ? { ...s, status: "active" as const, rejoinDate: dateStr } : s),
-    );
-  }, []);
 
   const getActiveStaff = useCallback(
     () => staffList.filter((s) => s.status === "active" || s.status === "probation"),
@@ -195,47 +139,26 @@ export function StaffProvider({ children }: { children: ReactNode }) {
   const getActiveStaffByWorkplace = useCallback(
     (workplaceId: string) =>
       staffList.filter(
-        (s) => (s.status === "active" || s.status === "probation") && s.workplaceIds.includes(workplaceId),
+        (s) => (s.status === "active" || s.status === "probation") && s.workplaceId === workplaceId,
       ),
     [staffList],
   );
 
-  const addStaffToWorkplace = useCallback((staffId: string, workplaceId: string) => {
-    setStaffList((prev) =>
-      prev.map((s) => {
-        if (s.id !== staffId || s.workplaceIds.includes(workplaceId)) return s;
-        return { ...s, workplaceIds: [...s.workplaceIds, workplaceId] };
-      }),
-    );
-  }, []);
-
-  const clearStaffData = useCallback(async () => {
-    try {
-      await AsyncStorage.removeItem(STAFF_STORAGE_KEY);
-      setStaffList(INITIAL_STAFF_DATA);
-    } catch (error) {
-      console.error("초기화 실패:", error);
-    }
-  }, []);
-
   const value = useMemo(() => ({
     staffList,
     isLoaded,
+    refreshStaff,
     updateStaff,
-    resignStaff,
-    rejoinStaff,
-    clearStaffData,
     getActiveStaff,
     getResignedStaff,
     isUnderMinimumWage,
     getUnderWageStaff,
-    addStaffToWorkplace,
     getActiveStaffByWorkplace,
   }), [
     staffList, isLoaded,
-    updateStaff, resignStaff, rejoinStaff, clearStaffData,
+    refreshStaff, updateStaff,
     getActiveStaff, getResignedStaff, isUnderMinimumWage,
-    getUnderWageStaff, addStaffToWorkplace, getActiveStaffByWorkplace,
+    getUnderWageStaff, getActiveStaffByWorkplace,
   ]);
 
   return (
@@ -245,11 +168,8 @@ export function StaffProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Hook for using staff context
 export function useStaff() {
   const context = useContext(StaffContext);
-  if (context === undefined) {
-    throw new Error("useStaff must be used within a StaffProvider");
-  }
+  if (context === undefined) throw new Error("useStaff must be used within a StaffProvider");
   return context;
 }

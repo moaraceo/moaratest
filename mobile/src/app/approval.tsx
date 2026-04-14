@@ -25,14 +25,14 @@ export default function ApprovalScreen() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const handleApproveAll = () => {
+  const handleApproveAll = async () => {
     const pending = getPendingRecords();
     if (pending.length === 0) {
       showToast("승인할 항목이 없습니다", "warning");
       return;
     }
     try {
-      const count = approveAllRecords();
+      const count = await approveAllRecords();
       showToast(`${count}건이 일괄 승인되었습니다`, "success");
     } catch {
       showToast("승인 처리 중 오류가 발생했습니다", "error");

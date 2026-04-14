@@ -65,18 +65,18 @@ export default function StaffMainScreen() {
   // ── 직원 정보 ──
   const { user } = useAuth();
   const { getSettings } = usePayrollSettings();
-  const { setCurrentWorkplace, getStaffWorkplaces, currentWorkplaceId } = useWorkplace();
+  const { workplaces, setCurrentWorkplace, currentWorkplaceId } = useWorkplace();
   const { staffList } = useStaff();
 
   // 사업장 전환 모달
   const [showSwitchModal, setShowSwitchModal] = useState(false);
 
-  // 현재 로그인 직원 — auth user.id 기준으로 매칭, 없으면 name으로 fallback
+  // 현재 로그인 직원
   const currentStaff =
-    staffList.find((s) => s.id === user?.id) ??
+    staffList.find((s) => s.userId === user?.id) ??
     staffList.find((s) => s.name === user?.name) ??
     staffList[0];
-  const myWorkplaces = getStaffWorkplaces(currentStaff?.workplaceIds ?? []);
+  const myWorkplaces = workplaces; // workplaceStore가 이미 이 유저 소속 사업장만 로드
   const activeWorkplace = myWorkplaces.find((w) => w.id === currentWorkplaceId) ?? myWorkplaces[0];
 
   const payrollSettings = getSettings(currentWorkplaceId ?? "workplace-1");
@@ -208,11 +208,7 @@ export default function StaffMainScreen() {
     setClockInTime(now);
     setAttendanceState("working");
     saveToStorage(data);
-    storeClockIn(
-      currentStaff?.name ?? user?.name ?? "",
-      currentStaff?.initial ?? (user?.name?.[0] ?? ""),
-      currentWorkplaceId ?? "workplace-1",
-    );
+    storeClockIn(currentWorkplaceId ?? "");
   };
 
   const handleClockOutPress = () => {
