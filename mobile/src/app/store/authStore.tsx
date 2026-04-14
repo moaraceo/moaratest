@@ -3,7 +3,7 @@
  * - Supabase Auth 대신 자체 백엔드 JWT 사용
  * - 토큰은 expo-secure-store에 암호화 저장 (AsyncStorage 금지)
  */
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -104,9 +104,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     })();
+  }, []); // clearAuth, tryRefresh 모두 useCallback([]) — 마운트 후 불변
+
+  const clearAuth = useCallback(async () => {
+    await Promise.all([
+      secureDel(AUTH_USER_KEY),
+      secureDel(AUTH_ACCESS_KEY),
+      secureDel(AUTH_REFRESH_KEY),
+    ]);
+    setUser(null);
+    setAccessToken(null);
   }, []);
 
-  const tryRefresh = async () => {
+  const tryRefresh = useCallback(async () => {
     try {
       const storedRefresh = await secureGet(AUTH_REFRESH_KEY);
       if (!storedRefresh) return;
@@ -138,19 +148,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       await clearAuth();
     }
-  };
+  }, [clearAuth]);
 
-  const clearAuth = async () => {
-    await Promise.all([
-      secureDel(AUTH_USER_KEY),
-      secureDel(AUTH_ACCESS_KEY),
-      secureDel(AUTH_REFRESH_KEY),
-    ]);
-    setUser(null);
-    setAccessToken(null);
-  };
-
-  const login = async (
+  const login = useCallback(async (
     newUser: AuthUser,
     tokens: { accessToken: string; refreshToken: string }
   ) => {
@@ -162,43 +162,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ]);
     setUser(newUser);
     setAccessToken(tokens.accessToken);
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await clearAuth();
-  };
+  }, [clearAuth]);
 
-  const setRole = (role: UserRole) => {
+  const setRole = useCallback((role: UserRole) => {
     setUser((prev) => {
       if (!prev) return null;
       const updated = { ...prev, role };
       secureSet(AUTH_USER_KEY, JSON.stringify(updated)).catch(() => {});
       return updated;
     });
-  };
+  }, []);
 
-  const updateUser = (partial: Partial<AuthUser>) => {
+  const updateUser = useCallback((partial: Partial<AuthUser>) => {
     setUser((prev) => {
       if (!prev) return null;
       const updated = { ...prev, ...partial };
       secureSet(AUTH_USER_KEY, JSON.stringify(updated)).catch(() => {});
       return updated;
     });
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    user,
+    role: user?.role ?? null,
+    loading,
+    accessToken,
+    login,
+    signOut,
+    setRole,
+    updateUser,
+  }), [user, loading, accessToken, login, signOut, setRole, updateUser]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        role: user?.role ?? null,
-        loading,
-        accessToken,
-        login,
-        signOut,
-        setRole,
-        updateUser,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

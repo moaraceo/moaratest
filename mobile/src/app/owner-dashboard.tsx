@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -13,8 +13,12 @@ import { colors, shadows } from "../constants/theme";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import OwnerTabBar from "./components/common/OwnerTabBar";
 import { CURRENT_MINIMUM_WAGE } from "./constants/minimumWage";
+import { useAttendance } from "./store/attendanceStore";
 import { useAuth } from "./store/authStore";
+import { usePayrollSettings } from "./store/payrollSettingsStore";
 import { useStaff } from "./store/staffStore";
+import { useWorkplace } from "./store/workplaceStore";
+import { calcDailyPayroll } from "./utils/payroll";
 import { formatMoney } from "./utils/format";
 
 // 카드 배경색 팔레트
@@ -40,7 +44,10 @@ const statusConfig: Record<string, { bg: string; dot: string; label: string; ico
 export default function OwnerDashboardScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const { signOut } = useAuth();
-  const { getUnderWageStaff } = useStaff();
+  const { getUnderWageStaff, getActiveStaffByWorkplace } = useStaff();
+  const { records, getPendingRecords } = useAttendance();
+  const { getCurrentWorkplace } = useWorkplace();
+  const { getSettings } = usePayrollSettings();
 
   const handleSignOut = () => {
     Alert.alert("로그아웃", "로그아웃 하시겠어요?", [
@@ -67,22 +74,88 @@ export default function OwnerDashboardScreen() {
   const today = new Date();
   const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
   const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")} (${dayNames[today.getDay()]})`;
+  const todayStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
 
-  // 샘플 데이터
+  const currentWorkplace = getCurrentWorkplace();
+  const workplaceId = currentWorkplace?.id ?? "workplace-1";
+  const payrollSettings = getSettings(workplaceId);
+
+  // 오늘 날짜 근태 기록 (현재 사업장)
+  const todayRecords = records.filter(
+    (r) => r.date === todayStr && r.workplaceId === workplaceId,
+  );
+
+  // 미승인 건수 (현재 사업장)
+  const pendingRecords = getPendingRecords().filter(
+    (r) => r.workplaceId === workplaceId,
+  );
+
+  // 오늘 출근 완료 인원 (clockOut 있는 기록)
+  const checkInDone = todayRecords.filter((r) => r.clockOut !== null).length;
+
+  // 퇴근 누락: 출근은 했지만 clockOut이 null이고 status가 PENDING
+  const missedCheckout = todayRecords.filter(
+    (r) => r.clockOut === null && r.status === "PENDING",
+  ).length;
+
+  // 이번 달 인건비: CONFIRMED 기록만 합산 (세전)
+  const currentYear = today.getFullYear();
+  const currentMonth = String(today.getMonth() + 1).padStart(2, "0");
+  const confirmedThisMonth = records.filter(
+    (r) =>
+      r.status === "CONFIRMED" &&
+      r.workplaceId === workplaceId &&
+      r.date.startsWith(`${currentYear}.${currentMonth}`),
+  );
+  const laborCostTotal = confirmedThisMonth.reduce((sum, r) => {
+    if (!r.clockOut) return sum;
+    const dateKey = r.date.replace(/\./g, "-");
+    const daily = calcDailyPayroll(
+      { date: dateKey, clockIn: r.clockIn, clockOut: r.clockOut, breakMinutes: r.breakMinutes },
+      payrollSettings,
+    );
+    return sum + daily.dailyTotal;
+  }, 0);
+
   const stats = {
-    checkInDone: 3,
-    absent: 1,
-    laborCost: "1,240,000",
-    pendingCount: 3,
-    missedCheckout: 1,
+    checkInDone,
+    pendingCount: pendingRecords.length,
+    laborCost: laborCostTotal.toLocaleString(),
+    missedCheckout,
   };
 
-  const quickStaff = [
-    { id: "1", name: "김민지", initial: "김", status: "근무중",   hourlyWage: 10030 },
-    { id: "2", name: "박준혁", initial: "박", status: "퇴근누락", hourlyWage: 10030 },
-    { id: "3", name: "이수연", initial: "이", status: "근무중",   hourlyWage: 10500 },
-    { id: "4", name: "최태양", initial: "최", status: "출근전",   hourlyWage: 10030 },
-  ];
+  // 현재 사업장 재직 직원 → 오늘 상태 계산
+  const activeStaff = getActiveStaffByWorkplace(workplaceId);
+  const quickStaff = activeStaff.map((s) => {
+    const rec = todayRecords.find((r) => r.staffName === s.name);
+    let status: string;
+    if (!rec) {
+      status = "출근전";
+    } else if (rec.clockOut === null) {
+      status = rec.status === "PENDING" ? "근무중" : "퇴근누락";
+    } else {
+      status = "퇴근";
+    }
+    return { id: s.id, name: s.name, initial: s.initial, status, hourlyWage: s.hourlyWage };
+  });
+
+  // 이번 주 주휴수당 발생 직원: 이번 주 CONFIRMED 실근무 합계 ≥ 900분
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay() + 1); // 이번 주 월요일
+  const weekStartStr = `${weekStart.getFullYear()}.${String(weekStart.getMonth() + 1).padStart(2, "0")}.${String(weekStart.getDate()).padStart(2, "0")}`;
+  const holidayAlertStaff = activeStaff.filter((s) => {
+    const weekMins = records
+      .filter(
+        (r) =>
+          r.staffName === s.name &&
+          r.workplaceId === workplaceId &&
+          r.status === "CONFIRMED" &&
+          r.date >= weekStartStr &&
+          r.date <= todayStr,
+      )
+      .reduce((sum, r) => sum + r.actualWorkMinutes, 0);
+    return weekMins >= 900; // 15시간 이상
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -91,7 +164,7 @@ export default function OwnerDashboardScreen() {
         {/* ── 헤더 ── */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.storeName}>OO카페 강남점</Text>
+            <Text style={styles.storeName}>{currentWorkplace?.name ?? "사업장"}</Text>
             <Text style={styles.dateText}>{dateStr}</Text>
           </View>
           <TouchableOpacity
@@ -129,15 +202,17 @@ export default function OwnerDashboardScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* ── AI 알림 ── */}
-        <View style={[styles.aiCard, { backgroundColor: "#FFF0F0", borderColor: "#FECACA" }]}>
-          <View style={styles.aiBadge}>
-            <Text style={styles.aiBadgeText}>AI</Text>
+        {/* ── AI 알림: 주휴수당 발생 직원 ── */}
+        {holidayAlertStaff.map((s) => (
+          <View key={s.id} style={[styles.aiCard, { backgroundColor: "#FFF0F0", borderColor: "#FECACA" }]}>
+            <View style={styles.aiBadge}>
+              <Text style={styles.aiBadgeText}>AI</Text>
+            </View>
+            <Text style={styles.aiText}>
+              {s.name} 님 이번 주 근무 15시간 초과 → 주휴수당이 발생합니다. 급여 확인이 필요해요.
+            </Text>
           </View>
-          <Text style={styles.aiText}>
-            이서준 님 이번 주 근무 15시간 초과 → 주휴수당이 발생합니다. 급여 확인이 필요해요.
-          </Text>
-        </View>
+        ))}
         {underWageStaff.length > 0 && (
           <View style={[styles.aiCard, { backgroundColor: palette.yellow, borderColor: "#FDE68A" }]}>
             <View style={[styles.aiBadge, { backgroundColor: "#F59E0B" }]}>
@@ -181,10 +256,10 @@ export default function OwnerDashboardScreen() {
         {/* ── 사업장 설정 링크 ── */}
         <TouchableOpacity
           style={styles.workplaceSettingsBtn}
-          onPress={() => router.push("/workplace-settings?workplaceId=workplace-1")}
+          onPress={() => router.push(`/workplace-settings?workplaceId=${workplaceId}`)}
           activeOpacity={0.75}
         >
-          <Text style={styles.workplaceSettingsBtnText}>⚙ OO카페 강남점 설정</Text>
+          <Text style={styles.workplaceSettingsBtnText}>⚙ {currentWorkplace?.name ?? "사업장"} 설정</Text>
           <Text style={styles.workplaceSettingsArrow}>›</Text>
         </TouchableOpacity>
 
@@ -193,7 +268,7 @@ export default function OwnerDashboardScreen() {
           <Text style={styles.sectionTitle}>빠른 설정</Text>
           <TouchableOpacity
             style={styles.taskRow}
-            onPress={() => router.push("/owner-payroll-settings?workplaceId=workplace-1")}
+            onPress={() => router.push(`/owner-payroll-settings?workplaceId=${workplaceId}`)}
             activeOpacity={0.7}
           >
             <View style={[styles.taskDot, { backgroundColor: colors.primary }]} />
@@ -205,7 +280,7 @@ export default function OwnerDashboardScreen() {
           <View style={styles.divider} />
           <TouchableOpacity
             style={styles.taskRow}
-            onPress={() => router.push("/owner-invite?workplaceId=workplace-1")}
+            onPress={() => router.push(`/owner-invite?workplaceId=${workplaceId}`)}
             activeOpacity={0.7}
           >
             <View style={[styles.taskDot, { backgroundColor: "#8B5CF6" }]} />

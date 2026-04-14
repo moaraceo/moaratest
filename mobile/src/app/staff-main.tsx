@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import StaffTabBar from "./components/common/StaffTabBar";
 import { useAttendance } from "./store/attendanceStore";
+import { useAuth } from "./store/authStore";
 import { usePayrollSettings } from "./store/payrollSettingsStore";
 import { useStaff } from "./store/staffStore";
 import { useWorkplace } from "./store/workplaceStore";
@@ -62,6 +63,7 @@ export default function StaffMainScreen() {
 
 
   // ── 직원 정보 ──
+  const { user } = useAuth();
   const { getSettings } = usePayrollSettings();
   const { setCurrentWorkplace, getStaffWorkplaces, currentWorkplaceId } = useWorkplace();
   const { staffList } = useStaff();
@@ -69,8 +71,11 @@ export default function StaffMainScreen() {
   // 사업장 전환 모달
   const [showSwitchModal, setShowSwitchModal] = useState(false);
 
-  // 현재 로그인 직원 (샘플: 김민지)
-  const currentStaff = staffList.find((s) => s.name === "김민지") ?? staffList[0];
+  // 현재 로그인 직원 — auth user.id 기준으로 매칭, 없으면 name으로 fallback
+  const currentStaff =
+    staffList.find((s) => s.id === user?.id) ??
+    staffList.find((s) => s.name === user?.name) ??
+    staffList[0];
   const myWorkplaces = getStaffWorkplaces(currentStaff?.workplaceIds ?? []);
   const activeWorkplace = myWorkplaces.find((w) => w.id === currentWorkplaceId) ?? myWorkplaces[0];
 
@@ -203,7 +208,11 @@ export default function StaffMainScreen() {
     setClockInTime(now);
     setAttendanceState("working");
     saveToStorage(data);
-    storeClockIn("김민지", "김", "workplace-1");
+    storeClockIn(
+      currentStaff?.name ?? user?.name ?? "",
+      currentStaff?.initial ?? (user?.name?.[0] ?? ""),
+      currentWorkplaceId ?? "workplace-1",
+    );
   };
 
   const handleClockOutPress = () => {

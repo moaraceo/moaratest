@@ -101,9 +101,39 @@ router.post('/:id/clock-out', async (req: AuthRequest, res) => {
   res.json({ ok: true, data })
 })
 
-// PATCH /attendance/:id/confirm — 사장님 승인
+// PATCH /attendance/:id/confirm — 사장님 승인 (OWNER 전용)
 router.patch('/:id/confirm', async (req: AuthRequest, res) => {
+  if (req.user!.role !== 'owner') {
+    res.status(403).json({ ok: false, error: { message: '사업주만 근태를 승인할 수 있습니다.' } })
+    return
+  }
+
   const { id } = req.params
+  const ownerId = req.user!.sub
+
+  // 해당 근태 기록이 사장님 소유 사업장에 속하는지 확인
+  const { data: attendance } = await supabaseAdmin
+    .from('attendance')
+    .select('workplace_id')
+    .eq('id', id)
+    .single()
+
+  if (!attendance) {
+    res.status(404).json({ ok: false, error: { message: '근태 기록을 찾을 수 없습니다.' } })
+    return
+  }
+
+  const { data: workplace } = await supabaseAdmin
+    .from('workplaces')
+    .select('id')
+    .eq('id', attendance.workplace_id)
+    .eq('owner_id', ownerId)
+    .single()
+
+  if (!workplace) {
+    res.status(403).json({ ok: false, error: { message: '해당 사업장의 사업주만 승인할 수 있습니다.' } })
+    return
+  }
 
   const { data, error } = await supabaseAdmin
     .from('attendance')

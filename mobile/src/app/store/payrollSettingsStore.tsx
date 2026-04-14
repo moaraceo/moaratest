@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import {
@@ -102,10 +103,13 @@ export function PayrollSettingsProvider({ children }: { children: ReactNode }) {
     [settingsMap],
   );
 
+  const value = useMemo(
+    () => ({ isLoaded, getSettings, saveSettings, resetSettings }),
+    [isLoaded, getSettings, saveSettings, resetSettings],
+  );
+
   return (
-    <PayrollSettingsContext.Provider
-      value={{ isLoaded, getSettings, saveSettings, resetSettings }}
-    >
+    <PayrollSettingsContext.Provider value={value}>
       {children}
     </PayrollSettingsContext.Provider>
   );

@@ -2,8 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -180,13 +182,16 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     return hours * 60 + minutes;
   };
 
-  // 분 단위 근무시간 계산
-  const calculateWorkMinutes = (clockIn: string, clockOut: string): number => {
-    return timeToMinutes(clockOut) - timeToMinutes(clockIn);
-  };
+  // 분 단위 근무시간 계산 (자정 넘기는 케이스 처리)
+  const calculateWorkMinutes = useCallback((clockIn: string, clockOut: string): number => {
+    const inMins = timeToMinutes(clockIn);
+    let outMins = timeToMinutes(clockOut);
+    if (outMins < inMins) outMins += 1440; // 예: 22:00 출근 → 06:00 퇴근
+    return Math.max(0, outMins - inMins);
+  }, []);
 
   // 출근 기록
-  const clockIn = (
+  const clockIn = useCallback((
     staffName: string,
     staffInitial: string,
     workplaceId: string,
@@ -209,39 +214,30 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     };
 
     setRecords((prev) => {
-      // 오늘 날짜의 기존 기록이 있으면 제거
       const filtered = prev.filter(
         (r) => !(r.staffName === staffName && r.date === today),
       );
       return [...filtered, newRecord];
     });
-  };
+  }, []);
 
   // 퇴근 기록
-  const clockOut = (recordId: string) => {
+  const clockOut = useCallback((recordId: string) => {
     const clockOutTime = getCurrentTime();
 
     setRecords((prev) =>
       prev.map((record) => {
         if (record.id === recordId && record.clockIn) {
-          const workMinutes = calculateWorkMinutes(
-            record.clockIn,
-            clockOutTime,
-          );
-          return {
-            ...record,
-            clockOut: clockOutTime,
-            workMinutes,
-            status: "PENDING",
-          };
+          const workMinutes = calculateWorkMinutes(record.clockIn, clockOutTime);
+          return { ...record, clockOut: clockOutTime, workMinutes, status: "PENDING" };
         }
         return record;
       }),
     );
-  };
+  }, [calculateWorkMinutes]);
 
   // 퇴근 + 휴게시간 일괄 기록 (break_select 제출 시 사용)
-  const clockOutWithBreak = (
+  const clockOutWithBreak = useCallback((
     recordId: string,
     clockOutTime: string,
     breakMinutes: number,
@@ -251,31 +247,24 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
         if (record.id === recordId && record.clockIn) {
           const workMinutes = calculateWorkMinutes(record.clockIn, clockOutTime);
           const actualWorkMinutes = Math.max(0, workMinutes - breakMinutes);
-          return {
-            ...record,
-            clockOut: clockOutTime,
-            workMinutes,
-            breakMinutes,
-            actualWorkMinutes,
-            status: "PENDING",
-          };
+          return { ...record, clockOut: clockOutTime, workMinutes, breakMinutes, actualWorkMinutes, status: "PENDING" };
         }
         return record;
       }),
     );
-  };
+  }, [calculateWorkMinutes]);
 
   // 근태 승인
-  const approveRecord = (recordId: string) => {
+  const approveRecord = useCallback((recordId: string) => {
     setRecords((prev) =>
       prev.map((record) =>
         record.id === recordId ? { ...record, status: "CONFIRMED" } : record,
       ),
     );
-  };
+  }, []);
 
   // 전체 근태 일괄 승인 (PENDING → CONFIRMED)
-  const approveAllRecords = (): number => {
+  const approveAllRecords = useCallback((): number => {
     const pendingIds = records
       .filter((r) => r.status === "PENDING")
       .map((r) => r.id);
@@ -286,51 +275,51 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
       ),
     );
     return pendingIds.length;
-  };
+  }, [records]);
 
   // 근태 반려
-  const rejectRecord = (recordId: string) => {
+  const rejectRecord = useCallback((recordId: string) => {
     setRecords((prev) =>
       prev.map((record) =>
         record.id === recordId ? { ...record, status: "REJECTED" } : record,
       ),
     );
-  };
+  }, []);
 
   // 데이터 초기화 기능
-  const clearAllData = async () => {
+  const clearAllData = useCallback(async () => {
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
       setRecords([]);
     } catch (error) {
       console.error("초기화 실패:", error);
     }
-  };
+  }, []);
 
   // 미승인 목록
-  const getPendingRecords = (): AttendanceRecord[] => {
+  const getPendingRecords = useCallback((): AttendanceRecord[] => {
     return records.filter((record) => record.status === "PENDING");
-  };
+  }, [records]);
 
   // 확정 목록
-  const getConfirmedRecords = (): AttendanceRecord[] => {
+  const getConfirmedRecords = useCallback((): AttendanceRecord[] => {
     return records.filter((record) => record.status === "CONFIRMED");
-  };
+  }, [records]);
 
   // 오늘 특정 직원의 기록
-  const getTodayRecord = (staffName: string): AttendanceRecord | null => {
+  const getTodayRecord = useCallback((staffName: string): AttendanceRecord | null => {
     const today = getTodayDate();
     return (
       records.find((r) => r.staffName === staffName && r.date === today) || null
     );
-  };
+  }, [records]);
 
   // 특정 사업장 기록 필터
-  const getRecordsByWorkplace = (workplaceId: string): AttendanceRecord[] => {
+  const getRecordsByWorkplace = useCallback((workplaceId: string): AttendanceRecord[] => {
     return records.filter((r) => r.workplaceId === workplaceId);
-  };
+  }, [records]);
 
-  const value: AttendanceContextType = {
+  const value = useMemo<AttendanceContextType>(() => ({
     records,
     isLoaded,
     clockIn,
@@ -344,7 +333,21 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     getConfirmedRecords,
     getTodayRecord,
     getRecordsByWorkplace,
-  };
+  }), [
+    records,
+    isLoaded,
+    clockIn,
+    clockOut,
+    clockOutWithBreak,
+    approveRecord,
+    approveAllRecords,
+    rejectRecord,
+    clearAllData,
+    getPendingRecords,
+    getConfirmedRecords,
+    getTodayRecord,
+    getRecordsByWorkplace,
+  ]);
 
   return (
     <AttendanceContext.Provider value={value}>

@@ -2,8 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -175,65 +177,57 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
 
   // ── Actions ──────────────────────────────────
 
-  const setCurrentWorkplace = (id: string) => {
+  const setCurrentWorkplace = useCallback((id: string) => {
     setCurrentWorkplaceIdState(id);
     AsyncStorage.setItem(CURRENT_WP_KEY, id).catch(console.error);
-  };
+  }, []);
 
-  const getCurrentWorkplace = (): Workplace | null =>
-    workplaces.find((w) => w.id === currentWorkplaceId) ?? null;
+  const getCurrentWorkplace = useCallback(
+    (): Workplace | null => workplaces.find((w) => w.id === currentWorkplaceId) ?? null,
+    [workplaces, currentWorkplaceId],
+  );
 
-  const getOwnerWorkplaces = (ownerId: string): Workplace[] =>
-    workplaces.filter((w) => w.ownerId === ownerId);
+  const getOwnerWorkplaces = useCallback(
+    (ownerId: string) => workplaces.filter((w) => w.ownerId === ownerId),
+    [workplaces],
+  );
 
-  const getStaffWorkplaces = (workplaceIds: string[]): Workplace[] =>
-    workplaces.filter((w) => workplaceIds.includes(w.id));
+  const getStaffWorkplaces = useCallback(
+    (workplaceIds: string[]) => workplaces.filter((w) => workplaceIds.includes(w.id)),
+    [workplaces],
+  );
 
-  /** 특정 사업장의 초대 코드를 재발급하고 코드 문자열을 반환 */
-  const generateInviteCode = (workplaceId: string): string => {
+  const generateInviteCode = useCallback((workplaceId: string): string => {
     const code = randomCode();
     const expiry = makeExpiry();
     setWorkplaces((prev) =>
-      prev.map((w) =>
-        w.id === workplaceId
-          ? { ...w, inviteCode: code, inviteCodeExpiry: expiry }
-          : w,
-      ),
+      prev.map((w) => w.id === workplaceId ? { ...w, inviteCode: code, inviteCodeExpiry: expiry } : w),
     );
     return code;
-  };
+  }, []);
 
-  /** 초대 코드 검증: 존재 여부 + 만료 여부 확인 */
-  const joinByInviteCode = (
+  const joinByInviteCode = useCallback((
     code: string,
   ): { success: boolean; workplace?: Workplace; error?: string } => {
     const upper = code.toUpperCase().trim();
     const workplace = workplaces.find((w) => w.inviteCode === upper);
-
-    if (!workplace) {
-      return { success: false, error: "유효하지 않은 초대 코드예요." };
-    }
+    if (!workplace) return { success: false, error: "유효하지 않은 초대 코드예요." };
     if (new Date(workplace.inviteCodeExpiry) < new Date()) {
-      return {
-        success: false,
-        error: "초대 코드가 만료됐어요. 사장님께 새 코드를 요청해주세요.",
-      };
+      return { success: false, error: "초대 코드가 만료됐어요. 사장님께 새 코드를 요청해주세요." };
     }
     return { success: true, workplace };
-  };
+  }, [workplaces]);
 
-  /** 사업장 정보 수정 */
-  const updateWorkplace = (
+  const updateWorkplace = useCallback((
     workplaceId: string,
     updates: Partial<Pick<Workplace, "name" | "address" | "industryCode">>,
   ) => {
     setWorkplaces((prev) =>
       prev.map((w) => (w.id === workplaceId ? { ...w, ...updates } : w)),
     );
-  };
+  }, []);
 
-  /** 사장님이 새 사업장 추가 */
-  const addWorkplace = (
+  const addWorkplace = useCallback((
     name: string,
     address: string,
     ownerId: string,
@@ -248,35 +242,36 @@ export function WorkplaceProvider({ children }: { children: ReactNode }) {
       ownerId,
       inviteCode: randomCode(),
       inviteCodeExpiry: makeExpiry(),
-      createdAt: new Date()
-        .toLocaleDateString("ko-KR")
-        .replace(/\. /g, ".")
-        .replace(/\.$/, ""),
+      createdAt: new Date().toLocaleDateString("ko-KR").replace(/\. /g, ".").replace(/\.$/, ""),
       industryCode: industryCode ?? null,
-      regionCode: null,  // 서버 역지오코딩으로 채워짐
+      regionCode: null,
       gpsLat: gpsLat ?? null,
       gpsLng: gpsLng ?? null,
     };
     setWorkplaces((prev) => [...prev, newWP]);
     return newWP;
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    workplaces,
+    currentWorkplaceId,
+    isLoaded,
+    setCurrentWorkplace,
+    getCurrentWorkplace,
+    getOwnerWorkplaces,
+    getStaffWorkplaces,
+    generateInviteCode,
+    joinByInviteCode,
+    updateWorkplace,
+    addWorkplace,
+  }), [
+    workplaces, currentWorkplaceId, isLoaded,
+    setCurrentWorkplace, getCurrentWorkplace, getOwnerWorkplaces, getStaffWorkplaces,
+    generateInviteCode, joinByInviteCode, updateWorkplace, addWorkplace,
+  ]);
 
   return (
-    <WorkplaceContext.Provider
-      value={{
-        workplaces,
-        currentWorkplaceId,
-        isLoaded,
-        setCurrentWorkplace,
-        getCurrentWorkplace,
-        getOwnerWorkplaces,
-        getStaffWorkplaces,
-        generateInviteCode,
-        joinByInviteCode,
-        updateWorkplace,
-        addWorkplace,
-      }}
-    >
+    <WorkplaceContext.Provider value={value}>
       {children}
     </WorkplaceContext.Provider>
   );

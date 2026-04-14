@@ -2,8 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
     createContext,
     ReactNode,
+    useCallback,
     useContext,
     useEffect,
+    useMemo,
     useState,
 } from "react";
 import { CURRENT_MINIMUM_WAGE } from "../constants/minimumWage";
@@ -148,111 +150,96 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     }
   }, [staffList, isLoaded]);
 
-  // 최저시급 미달 여부 확인
-  const isUnderMinimumWage = (hourlyWage: number): boolean => {
-    return hourlyWage < CURRENT_MINIMUM_WAGE;
-  };
+  const isUnderMinimumWage = useCallback(
+    (hourlyWage: number) => hourlyWage < CURRENT_MINIMUM_WAGE,
+    [],
+  );
 
-  // 최저시급 미달 직원 목록 반환
-  const getUnderWageStaff = (): StaffMember[] => {
-    return staffList.filter(
-      (s) => s.status !== "resigned" && s.hourlyWage < CURRENT_MINIMUM_WAGE,
-    );
-  };
+  const getUnderWageStaff = useCallback(
+    () => staffList.filter((s) => s.status !== "resigned" && s.hourlyWage < CURRENT_MINIMUM_WAGE),
+    [staffList],
+  );
 
-  // 오늘 날짜 가져오기
-  const getTodayDate = (): string => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const day = now.getDate().toString().padStart(2, "0");
-    return `${year}.${month}.${day}`;
-  };
-
-  // 직원 정보 수정
-  const updateStaff = (id: string, updates: Partial<StaffMember>) => {
+  const updateStaff = useCallback((id: string, updates: Partial<StaffMember>) => {
     setStaffList((prev) =>
       prev.map((staff) => (staff.id === id ? { ...staff, ...updates } : staff)),
     );
-  };
+  }, []);
 
-  // 퇴사 처리
-  const resignStaff = (id: string) => {
-    const today = getTodayDate();
-    updateStaff(id, {
-      status: "resigned",
-      resignDate: today,
-    });
-  };
-
-  // 재입사 처리
-  const rejoinStaff = (id: string) => {
-    const today = getTodayDate();
-    updateStaff(id, {
-      status: "active",
-      rejoinDate: today,
-    });
-  };
-
-  // 재직중 직원 목록
-  const getActiveStaff = (): StaffMember[] => {
-    return staffList.filter(
-      (staff) => staff.status === "active" || staff.status === "probation",
-    );
-  };
-
-  // 퇴사 직원 목록
-  const getResignedStaff = (): StaffMember[] => {
-    return staffList.filter((staff) => staff.status === "resigned");
-  };
-
-  // 특정 사업장의 재직중 직원
-  const getActiveStaffByWorkplace = (workplaceId: string): StaffMember[] => {
-    return staffList.filter(
-      (staff) =>
-        (staff.status === "active" || staff.status === "probation") &&
-        staff.workplaceIds.includes(workplaceId),
-    );
-  };
-
-  // 초대 코드 참여 후 직원을 사업장에 추가
-  const addStaffToWorkplace = (staffId: string, workplaceId: string) => {
+  const resignStaff = useCallback((id: string) => {
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
     setStaffList((prev) =>
-      prev.map((staff) => {
-        if (staff.id !== staffId) return staff;
-        if (staff.workplaceIds.includes(workplaceId)) return staff; // 이미 속해있으면 무시
-        return { ...staff, workplaceIds: [...staff.workplaceIds, workplaceId] };
+      prev.map((s) => s.id === id ? { ...s, status: "resigned" as const, resignDate: dateStr } : s),
+    );
+  }, []);
+
+  const rejoinStaff = useCallback((id: string) => {
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
+    setStaffList((prev) =>
+      prev.map((s) => s.id === id ? { ...s, status: "active" as const, rejoinDate: dateStr } : s),
+    );
+  }, []);
+
+  const getActiveStaff = useCallback(
+    () => staffList.filter((s) => s.status === "active" || s.status === "probation"),
+    [staffList],
+  );
+
+  const getResignedStaff = useCallback(
+    () => staffList.filter((s) => s.status === "resigned"),
+    [staffList],
+  );
+
+  const getActiveStaffByWorkplace = useCallback(
+    (workplaceId: string) =>
+      staffList.filter(
+        (s) => (s.status === "active" || s.status === "probation") && s.workplaceIds.includes(workplaceId),
+      ),
+    [staffList],
+  );
+
+  const addStaffToWorkplace = useCallback((staffId: string, workplaceId: string) => {
+    setStaffList((prev) =>
+      prev.map((s) => {
+        if (s.id !== staffId || s.workplaceIds.includes(workplaceId)) return s;
+        return { ...s, workplaceIds: [...s.workplaceIds, workplaceId] };
       }),
     );
-  };
+  }, []);
 
-  // 데이터 초기화 기능
-  const clearStaffData = async () => {
+  const clearStaffData = useCallback(async () => {
     try {
       await AsyncStorage.removeItem(STAFF_STORAGE_KEY);
-      setStaffList(INITIAL_STAFF_DATA); // 샘플 데이터로 리셋
+      setStaffList(INITIAL_STAFF_DATA);
     } catch (error) {
       console.error("초기화 실패:", error);
     }
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    staffList,
+    isLoaded,
+    updateStaff,
+    resignStaff,
+    rejoinStaff,
+    clearStaffData,
+    getActiveStaff,
+    getResignedStaff,
+    isUnderMinimumWage,
+    getUnderWageStaff,
+    addStaffToWorkplace,
+    getActiveStaffByWorkplace,
+  }), [
+    staffList, isLoaded,
+    updateStaff, resignStaff, rejoinStaff, clearStaffData,
+    getActiveStaff, getResignedStaff, isUnderMinimumWage,
+    getUnderWageStaff, addStaffToWorkplace, getActiveStaffByWorkplace,
+  ]);
 
   return (
-    <StaffContext.Provider
-      value={{
-        staffList,
-        isLoaded,
-        updateStaff,
-        resignStaff,
-        rejoinStaff,
-        clearStaffData,
-        getActiveStaff,
-        getResignedStaff,
-        isUnderMinimumWage,
-        getUnderWageStaff,
-        addStaffToWorkplace,
-        getActiveStaffByWorkplace,
-      }}
-    >
+    <StaffContext.Provider value={value}>
       {children}
     </StaffContext.Provider>
   );

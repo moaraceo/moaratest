@@ -5,22 +5,20 @@ import { authenticateJwt, type AuthRequest } from '../middleware/auth.js'
 const router = Router()
 router.use(authenticateJwt)
 
+// ─────────────────────────────────────────────────────────────
+// 주의사항
+//  - Math.floor 외 반올림 함수(Math.round, Math.ceil) 사용 금지
+//  - 세금 공제 계산 금지 (소득세·고용보험·국민연금 등)
+//  - 모든 금액은 세전(稅前) 기준
+// ─────────────────────────────────────────────────────────────
+
 function calcPayroll(netMinutes: number, hourlyWage: number) {
-  const hours = netMinutes / 60
-  const basePay = Math.round(hours * hourlyWage)
-  const nationalPension = Math.round(basePay * 0.045)
-  const healthInsurance = Math.round(basePay * 0.03545)
-  const employmentInsurance = Math.round(basePay * 0.009)
-  let incomeTax = 0
-  if (basePay <= 3_000_000) incomeTax = Math.round(basePay * 0.05)
-  else if (basePay <= 4_500_000) incomeTax = Math.round(basePay * 0.08)
-  else incomeTax = Math.round(basePay * 0.1)
-  const totalDeductions = nationalPension + healthInsurance + employmentInsurance + incomeTax
+  const workHours = Math.floor(netMinutes / 60 * 10) / 10
+  const basePay = Math.floor((netMinutes / 60) * hourlyWage)
   return {
-    workHours: Math.round(hours * 10) / 10,
+    workHours,
     basePay,
-    deductions: { nationalPension, healthInsurance, employmentInsurance, incomeTax, total: totalDeductions },
-    netPay: basePay - totalDeductions,
+    totalWage: basePay, // 세전 합계 (세금 공제 없음)
   }
 }
 
