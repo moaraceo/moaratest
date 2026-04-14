@@ -23,7 +23,7 @@ export const config = {
   },
 
   sms: {
-    provider: (process.env['SMS_PROVIDER'] ?? 'mock') as 'mock' | 'twilio',
+    provider: (process.env['SMS_PROVIDER'] ?? 'mock') as 'mock' | 'twilio' | 'coolsms',
     apiKey: process.env['SMS_API_KEY'] ?? '',
     apiSecret: process.env['SMS_API_SECRET'] ?? '',
     from: process.env['SMS_FROM'] ?? '',
