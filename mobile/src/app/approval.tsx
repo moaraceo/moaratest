@@ -1,13 +1,14 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    SafeAreaView,
+    Alert,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import EmptyState from "./components/common/EmptyState";
 import OwnerTabBar from "./components/common/OwnerTabBar";
@@ -25,18 +26,31 @@ export default function ApprovalScreen() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const handleApproveAll = async () => {
+  const handleApproveAll = () => {
     const pending = getPendingRecords();
     if (pending.length === 0) {
       showToast("승인할 항목이 없습니다", "warning");
       return;
     }
-    try {
-      const count = await approveAllRecords();
-      showToast(`${count}건이 일괄 승인되었습니다`, "success");
-    } catch {
-      showToast("승인 처리 중 오류가 발생했습니다", "error");
-    }
+    Alert.alert(
+      "일괄 승인",
+      `${pending.length}건을 일괄 승인하면 급여가 확정됩니다.\n계속하시겠어요?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "승인",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const count = await approveAllRecords();
+              showToast(`${count}건이 일괄 승인되었습니다`, "success");
+            } catch {
+              showToast("승인 처리 중 오류가 발생했습니다", "error");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const pendingItems = getPendingRecords();

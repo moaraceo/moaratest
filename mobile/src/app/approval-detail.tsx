@@ -2,7 +2,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     Alert,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -10,12 +9,13 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import { CURRENT_MINIMUM_WAGE } from "./constants/minimumWage";
 import { useAttendance } from "./store/attendanceStore";
 
 export default function ApprovalDetailScreen() {
-  const { approveRecord, rejectRecord, getPendingRecords } = useAttendance();
+  const { approveRecord, rejectRecord, getPendingRecords, updateRecord } = useAttendance();
   const { recordId } = useLocalSearchParams<{ recordId: string }>();
 
   const [record, setRecord] = useState<any>(null);
@@ -25,20 +25,31 @@ export default function ApprovalDetailScreen() {
   const [reason, setReason] = useState("");
   const [workMinutes, setWorkMinutes] = useState(0);
   const [basicPay, setBasicPay] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
 
   // 시급 (동적으로 가져오기)
   const HOURLY_WAGE = CURRENT_MINIMUM_WAGE;
 
-  // 실 근무시간 계산
+  // 시간 형식 검증 (HH:MM, 00:00~23:59)
+  const isValidTime = (t: string): boolean => {
+    if (!/^\d{2}:\d{2}$/.test(t)) return false;
+    const [h, m] = t.split(":").map(Number);
+    return h! >= 0 && h! <= 23 && m! >= 0 && m! <= 59;
+  };
+
+  // 실 근무시간 계산 (자정 넘기는 야간 근무 처리)
   const calcWorkMinutes = (
     clockInStr: string,
     clockOutStr: string,
     breakMin: number,
   ) => {
+    if (!isValidTime(clockInStr) || !isValidTime(clockOutStr)) return 0;
     const [inH, inM] = clockInStr.split(":").map(Number);
     const [outH, outM] = clockOutStr.split(":").map(Number);
-    const totalMinutes = outH * 60 + outM - (inH * 60 + inM);
-    return totalMinutes - breakMin;
+    const inMins = inH! * 60 + inM!;
+    let outMins = outH! * 60 + outM!;
+    if (outMins < inMins) outMins += 1440; // 자정 넘기는 야간 근무
+    return Math.max(0, outMins - inMins - breakMin);
   };
 
   // 기본급 계산
@@ -104,9 +115,33 @@ export default function ApprovalDetailScreen() {
     ]);
   };
 
-  const handleSave = () => {
-    Alert.alert("완료", "수정사항이 저장됐어요.");
-    router.back();
+  const handleSave = async () => {
+    if (!isValidTime(clockIn)) {
+      Alert.alert("입력 오류", "출근 시각 형식이 올바르지 않습니다.\nHH:MM 형식으로 입력해주세요.");
+      return;
+    }
+    if (!isValidTime(clockOut)) {
+      Alert.alert("입력 오류", "퇴근 시각 형식이 올바르지 않습니다.\nHH:MM 형식으로 입력해주세요.");
+      return;
+    }
+    if (workMinutes <= 0) {
+      Alert.alert("입력 오류", "퇴근 시각이 출근 시각보다 빠를 수 없습니다.\n야간 근무는 자동으로 +24h 처리됩니다.");
+      return;
+    }
+    if (!reason.trim()) {
+      Alert.alert("입력 오류", "수정 사유를 입력해주세요.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateRecord(recordId, clockIn, clockOut, breakMinutes, reason.trim());
+      Alert.alert("저장 완료", "근태 기록이 수정되었습니다.\n승인 버튼으로 최종 확정해주세요.");
+      router.back();
+    } catch (e) {
+      Alert.alert("저장 실패", e instanceof Error ? e.message : "오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const goBack = () => {
@@ -298,8 +333,12 @@ export default function ApprovalDetailScreen() {
         <TouchableOpacity style={styles.rejectButton} onPress={handleReject}>
           <Text style={styles.rejectButtonText}>반려</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>수정저장</Text>
+        <TouchableOpacity
+          style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
+          onPress={handleSave}
+          disabled={isSaving}
+        >
+          <Text style={styles.saveButtonText}>{isSaving ? "저장 중..." : "수정저장"}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.approveButton} onPress={handleApprove}>
           <Text style={styles.approveButtonText}>승인</Text>

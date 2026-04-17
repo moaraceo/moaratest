@@ -10,16 +10,24 @@ import workplacesRouter from './routes/workplaces.js'
 const app = express()
 
 // ─── CORS ──────────────────────────────────────────────────
+// ALLOWED_ORIGINS: 쉼표로 구분된 허용 도메인 목록
+// 예) https://admin.moara.app,https://moara.app
+// 미설정 시 개발 기본값 사용
+const allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .concat([
+    'http://localhost:8081',
+    'http://localhost:3000',
+    'exp://localhost:8081',
+  ])
+
 app.use(cors({
   origin: (origin, cb) => {
     // 모바일 앱은 Origin 헤더가 없거나 null
     if (!origin || origin === 'null') return cb(null, true)
-    const allowed = [
-      'http://localhost:8081',
-      'http://localhost:3000',
-      'exp://localhost:8081',
-    ]
-    cb(null, allowed.includes(origin))
+    cb(null, allowedOrigins.includes(origin))
   },
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,

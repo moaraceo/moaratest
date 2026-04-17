@@ -218,6 +218,20 @@ router.patch('/:id/staff/:staffUserId', async (req: AuthRequest, res) => {
   }
 
   const { id, staffUserId } = req.params
+
+  // [H-2 수정] JWT role만 확인하지 않고 실제 사업장 소유권 검증
+  const { data: workplace, error: wpErr } = await supabaseAdmin
+    .from('workplaces')
+    .select('id')
+    .eq('id', id)
+    .eq('owner_id', req.user!.sub)
+    .maybeSingle()
+
+  if (wpErr || !workplace) {
+    res.status(403).json({ ok: false, error: { message: '해당 사업장에 대한 권한이 없습니다.' } })
+    return
+  }
+
   const { hourly_wage, position, status } = req.body as Partial<{
     hourly_wage: number; position: string; status: string
   }>

@@ -199,7 +199,8 @@ export function calcDailyPayroll(
   const baseWage = Math.floor((roundedMinutes / 60) * hourlyRate);
 
   // 4. 연장근로수당 (일 8시간 초과 0.5배 가산, 5인 이상에서 주로 사용)
-  const overtimeMinutes = overtimePay ? calcOvertimeMinutes(netMinutes) : 0;
+  // roundedMinutes 기준: baseWage와 동일한 절사 단위 적용
+  const overtimeMinutes = overtimePay ? calcOvertimeMinutes(roundedMinutes) : 0;
   const overtimeWage = overtimePay
     ? Math.floor((overtimeMinutes / 60) * hourlyRate * 0.5)
     : 0;
@@ -254,10 +255,25 @@ export function calcWeeklyHolidayPay(
   if (!settings.weeklyHolidayPay || weeklyNetMinutes < 900) {
     return { eligible: false, amount: 0 };
   }
+  // 법적 상한: 주 40시간(2400분) 초과분은 주휴수당 산정에서 제외
+  const cappedMinutes = Math.min(weeklyNetMinutes, 2400);
   const amount = Math.floor(
-    (weeklyNetMinutes / 2400) * 8 * settings.hourlyRate,
+    (cappedMinutes / 2400) * 8 * settings.hourlyRate,
   );
   return { eligible: true, amount };
+}
+
+/** 월간 급여 내역 */
+export interface MonthlyPayroll {
+  yearMonth: string;              // 'YYYY-MM'
+  totalNetMinutes: number;        // 월간 총 실 근무시간 (분)
+  totalBaseWage: number;          // 기본급 합계 (원, 세전)
+  totalOvertimeWage: number;      // 연장근로수당 합계 (원)
+  totalNightWage: number;         // 야간근로수당 합계 (원)
+  totalHolidayWage: number;       // 근로자의 날 가산수당 합계 (원)
+  totalWeeklyHolidayPay: number;  // 주휴수당 합계 (원)
+  grandTotal: number;             // 세전 총합계 (원)
+  weeklyPayrolls: WeeklyPayroll[];
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -298,5 +314,58 @@ export function calcWeeklyPayroll(
     weeklyHolidayPay,
     dailyPayrolls,
     weeklyTotal,
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 함수 8: 월간 급여 계산
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * 해당 월 출근 기록 전체를 주(월~일) 단위로 묶어 WeeklyPayroll을 계산한 뒤
+ * 월간 합산 MonthlyPayroll을 반환한다.
+ *
+ * yearMonth: 'YYYY-MM'
+ */
+export function calcMonthlyPayroll(
+  attendances: DailyAttendance[],
+  settings: WorkplacePayrollSettings,
+  yearMonth: string,
+): MonthlyPayroll {
+  // 주 시작일(월요일) 기준으로 그루핑
+  const weekMap = new Map<string, DailyAttendance[]>();
+  for (const att of attendances) {
+    const d = new Date(att.date + "T00:00:00");
+    const dayOfWeek = d.getDay(); // 0=일, 1=월 …
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + daysToMonday);
+    const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    if (!weekMap.has(weekKey)) weekMap.set(weekKey, []);
+    weekMap.get(weekKey)!.push(att);
+  }
+
+  const weeklyPayrolls: WeeklyPayroll[] = Array.from(weekMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekStart, weekAtts]) => calcWeeklyPayroll(weekAtts, settings, weekStart));
+
+  const totalNetMinutes      = weeklyPayrolls.reduce((s, w) => s + w.totalNetMinutes, 0);
+  const totalBaseWage        = weeklyPayrolls.reduce((s, w) => w.dailyPayrolls.reduce((ds, d) => ds + d.baseWage, s), 0);
+  const totalOvertimeWage    = weeklyPayrolls.reduce((s, w) => w.dailyPayrolls.reduce((ds, d) => ds + d.overtimeWage, s), 0);
+  const totalNightWage       = weeklyPayrolls.reduce((s, w) => w.dailyPayrolls.reduce((ds, d) => ds + d.nightWage, s), 0);
+  const totalHolidayWage     = weeklyPayrolls.reduce((s, w) => w.dailyPayrolls.reduce((ds, d) => ds + d.holidayWage, s), 0);
+  const totalWeeklyHolidayPay = weeklyPayrolls.reduce((s, w) => s + w.weeklyHolidayPay, 0);
+  const grandTotal           = weeklyPayrolls.reduce((s, w) => s + w.weeklyTotal, 0);
+
+  return {
+    yearMonth,
+    totalNetMinutes,
+    totalBaseWage,
+    totalOvertimeWage,
+    totalNightWage,
+    totalHolidayWage,
+    totalWeeklyHolidayPay,
+    grandTotal,
+    weeklyPayrolls,
   };
 }

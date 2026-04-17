@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -10,7 +10,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows } from "../constants/theme";
 import StaffTabBar from "./components/common/StaffTabBar";
+import { useAuth } from "./store/authStore";
+import { useAttendance } from "./store/attendanceStore";
+import { usePayrollSettings } from "./store/payrollSettingsStore";
 import { useWorkplace } from "./store/workplaceStore";
+import { calcMonthlyPayroll, type DailyAttendance } from "./utils/payroll";
 
 // ─────────────────────────────────────────────
 // 뱃지 컴포넌트
@@ -45,38 +49,105 @@ const badgeStyles = StyleSheet.create({
 // ─────────────────────────────────────────────
 export default function PayslipScreen() {
   const router = useRouter();
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(3);
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+
+  const { user } = useAuth();
+  const { records } = useAttendance();
   const { getCurrentWorkplace } = useWorkplace();
+  const { getSettings } = usePayrollSettings();
   const currentWorkplace = getCurrentWorkplace();
 
   const prevMonth = () => {
-    if (month === 1) {
-      setYear((y) => y - 1);
-      setMonth(12);
-    } else setMonth((m) => m - 1);
+    if (month === 1) { setYear((y) => y - 1); setMonth(12); }
+    else setMonth((m) => m - 1);
   };
   const nextMonth = () => {
-    if (month === 12) {
-      setYear((y) => y + 1);
-      setMonth(1);
-    } else setMonth((m) => m + 1);
+    if (month === 12) { setYear((y) => y + 1); setMonth(1); }
+    else setMonth((m) => m + 1);
   };
 
-  // ── 샘플 급여 데이터 ──────────────────────────
-  const totalHours = "42시간 00분";
-  const hourlyWage = 10030;
+  // ── 실데이터 급여 계산 ──────────────────────────
+  const yearMonth = `${year}-${String(month).padStart(2, "0")}`;
+  const settings = useMemo(
+    () => getSettings(currentWorkplace?.id ?? ""),
+    [getSettings, currentWorkplace?.id],
+  );
 
-  const basicPay = 380000; // 확정
-  const weeklyAllowance = 80240; // 자동계산
-  const overtimePay = 21500; // 초과근무
-  const confirmedTotal = basicPay + weeklyAllowance + overtimePay; // 481,740
+  // 해당 월 레코드 필터 (REJECTED 제외, clockOut 있는 것만)
+  const monthRecords = useMemo(() => {
+    return records.filter((r) => {
+      if (r.status === "REJECTED" || !r.clockOut) return false;
+      // date: "YYYY.MM.DD" → "YYYY-MM"
+      const ym = r.date.replace(/\./g, "-").substring(0, 7);
+      return ym === yearMonth;
+    });
+  }, [records, yearMonth]);
 
-  const pendingPay = 19760; // 미승인 (3/8)
-  const estimatedTotal = confirmedTotal + pendingPay; // 501,500
+  const confirmedRecords = useMemo(
+    () => monthRecords.filter((r) => r.status === "CONFIRMED"),
+    [monthRecords],
+  );
+  const pendingRecords = useMemo(
+    () => monthRecords.filter((r) => r.status === "PENDING"),
+    [monthRecords],
+  );
 
-  const prevMonthFinal = 465000; // 전월 (2월) 확정
-  const pendingCount = 1;
+  // AttendanceRecord → DailyAttendance 변환
+  const toDailyAttendance = (r: typeof records[number]): DailyAttendance => ({
+    date: r.date.replace(/\./g, "-"),   // "YYYY.MM.DD" → "YYYY-MM-DD"
+    clockIn: r.clockIn,
+    clockOut: r.clockOut!,
+    breakMinutes: r.breakMinutes,
+  });
+
+  const confirmedPayroll = useMemo(
+    () => confirmedRecords.length > 0
+      ? calcMonthlyPayroll(confirmedRecords.map(toDailyAttendance), settings, yearMonth)
+      : null,
+    [confirmedRecords, settings, yearMonth],
+  );
+  const pendingPayroll = useMemo(
+    () => pendingRecords.length > 0
+      ? calcMonthlyPayroll(pendingRecords.map(toDailyAttendance), settings, yearMonth)
+      : null,
+    [pendingRecords, settings, yearMonth],
+  );
+
+  const hourlyWage = settings.hourlyRate;
+  const basicPay         = confirmedPayroll?.totalBaseWage ?? 0;
+  const weeklyAllowance  = confirmedPayroll?.totalWeeklyHolidayPay ?? 0;
+  const overtimePay      = (confirmedPayroll?.totalOvertimeWage ?? 0) + (confirmedPayroll?.totalNightWage ?? 0);
+  const holidayWage      = confirmedPayroll?.totalHolidayWage ?? 0;
+  const confirmedTotal   = confirmedPayroll?.grandTotal ?? 0;
+  const pendingPay       = pendingPayroll?.grandTotal ?? 0;
+  const estimatedTotal   = confirmedTotal + pendingPay;
+  const pendingCount     = pendingRecords.length;
+
+  // 총 근무시간 포맷
+  const totalNetMinutes = confirmedPayroll?.totalNetMinutes ?? 0;
+  const totalHours = `${Math.floor(totalNetMinutes / 60)}시간 ${String(totalNetMinutes % 60).padStart(2, "0")}분`;
+
+  // 전월 확정 급여
+  const prevYearMonth = month === 1
+    ? `${year - 1}-12`
+    : `${year}-${String(month - 1).padStart(2, "0")}`;
+  const prevMonthRecords = useMemo(
+    () => records.filter((r) => {
+      if (r.status !== "CONFIRMED" || !r.clockOut) return false;
+      const ym = r.date.replace(/\./g, "-").substring(0, 7);
+      return ym === prevYearMonth;
+    }),
+    [records, prevYearMonth],
+  );
+  const prevMonthPayroll = useMemo(
+    () => prevMonthRecords.length > 0
+      ? calcMonthlyPayroll(prevMonthRecords.map(toDailyAttendance), settings, prevYearMonth)
+      : null,
+    [prevMonthRecords, settings, prevYearMonth],
+  );
+  const prevMonthFinal = prevMonthPayroll?.grandTotal ?? 0;
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
@@ -88,7 +159,7 @@ export default function PayslipScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>내 급여</Text>
           <Text style={styles.headerSub}>
-            박지수 · {currentWorkplace?.name ?? "OO카페 강남점"}
+            {user?.name ?? "-"} · {currentWorkplace?.name ?? "-"}
           </Text>
         </View>
         <View style={{ width: 40 }} />
@@ -179,16 +250,32 @@ export default function PayslipScreen() {
           </View>
           <View style={styles.divider} />
 
-          {/* 연장수당 */}
+          {/* 연장/야간수당 */}
           <View style={styles.detailRow}>
             <View style={styles.detailLabelRow}>
-              <Text style={styles.detailLabel}>연장수당</Text>
+              <Text style={styles.detailLabel}>연장·야간수당</Text>
               <Badge label="초과근무" color={colors.warn} bg={colors.warnDim} />
             </View>
             <Text style={styles.detailValue}>
               {overtimePay.toLocaleString()}원
             </Text>
           </View>
+
+          {/* 근로자의 날 가산수당 (해당 월에 5/1이 포함된 경우만) */}
+          {holidayWage > 0 && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.detailRow}>
+                <View style={styles.detailLabelRow}>
+                  <Text style={styles.detailLabel}>근로자의 날 가산</Text>
+                  <Badge label="5/1" color={colors.primary} bg={colors.primaryDim} />
+                </View>
+                <Text style={styles.detailValue}>
+                  {holidayWage.toLocaleString()}원
+                </Text>
+              </View>
+            </>
+          )}
 
           {/* 예상 합계 구분선 */}
           <View style={styles.totalDivider} />

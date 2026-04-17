@@ -166,8 +166,10 @@ export default function StaffMainScreen() {
 
     const calc = () => {
       const now = new Date();
-      const nowMins = now.getHours() * 60 + now.getMinutes();
-      return Math.max(0, nowMins - timeToMinutes(clockInTime));
+      let nowMins = now.getHours() * 60 + now.getMinutes();
+      const inMins = timeToMinutes(clockInTime);
+      if (nowMins < inMins) nowMins += 1440; // 자정 넘기는 야간 근무 처리
+      return Math.max(0, nowMins - inMins);
     };
 
     setWorkMinutes(calc());
@@ -184,10 +186,13 @@ export default function StaffMainScreen() {
   };
 
   // break_select / done 총 근무시간
-  const totalWorkMinutes =
-    clockInTime && clockOutTime
-      ? Math.max(0, timeToMinutes(clockOutTime) - timeToMinutes(clockInTime))
-      : 0;
+  const totalWorkMinutes = (() => {
+    if (!clockInTime || !clockOutTime) return 0;
+    const inMins = timeToMinutes(clockInTime);
+    let outMins = timeToMinutes(clockOutTime);
+    if (outMins < inMins) outMins += 1440; // 자정 넘기는 야간 근무 처리
+    return Math.max(0, outMins - inMins);
+  })();
 
   const netMinutes = Math.max(0, totalWorkMinutes - selectedBreakMinutes);
   const doneNetMinutes = Math.max(0, totalWorkMinutes - storedBreakMinutes);

@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { useAuth } from "./authStore";
+import { useWorkplace } from "./workplaceStore";
 import { apiFetch } from "../utils/api";
 
 // ─────────────────────────────────────────────
@@ -44,7 +45,8 @@ function toHHMM(iso: string | null): string | null {
 const DAYS = ["(일)", "(월)", "(화)", "(수)", "(목)", "(금)", "(토)"];
 
 function mapRow(row: Record<string, any>, userName?: string): AttendanceRecord {
-  const name: string = userName ?? row.user_name ?? "";
+  // OWNER 조회 시 백엔드가 users!user_id(name) JOIN으로 반환 → row.users.name 우선
+  const name: string = (row.users as { name?: string } | null)?.name ?? userName ?? row.user_name ?? "";
   const dateStr: string = (row.date as string ?? "").replace(/-/g, ".");
   const d = new Date(row.date as string);
   return {
@@ -78,6 +80,7 @@ interface AttendanceContextType {
   approveRecord: (recordId: string) => Promise<void>;
   approveAllRecords: () => Promise<number>;
   rejectRecord: (recordId: string) => Promise<void>;
+  updateRecord: (recordId: string, clockIn: string, clockOut: string, breakMinutes: number, reason: string) => Promise<void>;
   getPendingRecords: () => AttendanceRecord[];
   getConfirmedRecords: () => AttendanceRecord[];
   getTodayRecord: () => AttendanceRecord | null;
@@ -90,6 +93,7 @@ const AttendanceContext = createContext<AttendanceContextType | undefined>(undef
 // ─────────────────────────────────────────────
 export function AttendanceProvider({ children }: { children: ReactNode }) {
   const { accessToken, user } = useAuth();
+  const { currentWorkplaceId } = useWorkplace();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -124,14 +128,25 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   }, [accessToken, user?.name]);
 
   // 로그인 시 자동 로드
+  // - STAFF: 본인 기록 즉시 로드
+  // - OWNER: currentWorkplaceId가 확정된 뒤 해당 사업장 전체 근태 로드
   useEffect(() => {
-    if (user && accessToken) {
-      refreshRecords();
-    } else {
+    if (!user || !accessToken) {
       setRecords([]);
       setIsLoaded(false);
+      return;
     }
-  }, [user?.id, accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (user.role === "owner") {
+      if (currentWorkplaceId) {
+        void refreshRecords(currentWorkplaceId);
+      } else {
+        // 사업장 정보 아직 미로드 — 로드 완료 마킹만 보류
+        setIsLoaded(false);
+      }
+    } else {
+      void refreshRecords();
+    }
+  }, [user?.id, user?.role, accessToken, currentWorkplaceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clockIn = useCallback(async (workplaceId: string) => {
     const data = await apiFetch<Record<string, any>>("/attendance/clock-in", accessToken, {
@@ -182,6 +197,30 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     );
   }, [accessToken]);
 
+  const updateRecord = useCallback(async (
+    recordId: string,
+    clockInTime: string,
+    clockOutTime: string,
+    breakMinutes: number,
+    reason: string,
+  ) => {
+    const data = await apiFetch<Record<string, any>>(
+      `/attendance/${recordId}`,
+      accessToken,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          clock_in: clockInTime,
+          clock_out: clockOutTime,
+          break_minutes: breakMinutes,
+          reason,
+        }),
+      },
+    );
+    const updated = mapRow(data, user?.name ?? "");
+    setRecords((prev) => prev.map((r) => r.id === recordId ? updated : r));
+  }, [accessToken, user?.name]);
+
   const getRecordsByWorkplace = useCallback(
     (workplaceId: string) => records.filter((r) => r.workplaceId === workplaceId),
     [records],
@@ -213,13 +252,14 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     approveRecord,
     approveAllRecords,
     rejectRecord,
+    updateRecord,
     getPendingRecords,
     getConfirmedRecords,
     getTodayRecord,
   }), [
     records, isLoaded,
     clockIn, clockOut, refreshRecords, getRecordsByWorkplace,
-    approveRecord, approveAllRecords, rejectRecord,
+    approveRecord, approveAllRecords, rejectRecord, updateRecord,
     getPendingRecords, getConfirmedRecords, getTodayRecord,
   ]);
 

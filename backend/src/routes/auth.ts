@@ -61,10 +61,9 @@ router.post('/sms/send', async (req, res) => {
 
 // ─── POST /auth/sms/verify ──────────────────────────────────
 router.post('/sms/verify', async (req, res) => {
-  const { phone, code, role, name } = req.body as {
+  const { phone, code, name } = req.body as {
     phone?: string
     code?: string
-    role?: string
     name?: string
   }
 
@@ -94,10 +93,18 @@ router.post('/sms/verify', async (req, res) => {
   otpStore.delete(phone)
 
   // supabaseAdmin으로 users 테이블 upsert (Prisma 사용 금지)
+  // ⚠️ C-1 수정: role은 body에서 절대 받지 않음 — 기존 DB값 보존 (신규: null)
+  // role 변경은 PATCH /auth/role 전용 엔드포인트를 통해서만 가능
+  const { data: existing } = await supabaseAdmin
+    .from('users')
+    .select('role')
+    .eq('phone', phone)
+    .maybeSingle()
+
   const { data: upserted, error: upsertErr } = await supabaseAdmin
     .from('users')
     .upsert(
-      { phone, name: name ?? phone, role: role ?? null },
+      { phone, name: name ?? phone, role: existing?.role ?? null },  // role은 DB 기존값 유지
       { onConflict: 'phone' }
     )
     .select()
