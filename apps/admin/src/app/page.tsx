@@ -1,12 +1,23 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import styles from './page.module.css'
 
-export default function HomePage() {
+function LoginContent() {
   const { user, loading, signInWithGoogle } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [signingIn, setSigningIn] = useState(false)
+
+  const errorParam = searchParams.get('error')
+  const errorMessage =
+    errorParam === 'exchange_failed'
+      ? '로그인에 실패했습니다. 다시 시도해 주세요.'
+      : errorParam
+        ? '오류가 발생했습니다. 다시 시도해 주세요.'
+        : null
 
   useEffect(() => {
     if (!loading && user) {
@@ -14,67 +25,51 @@ export default function HomePage() {
     }
   }, [user, loading, router])
 
+  const handleSignIn = async () => {
+    setSigningIn(true)
+    try {
+      await signInWithGoogle()
+    } catch {
+      setSigningIn(false)
+    }
+  }
+
   if (loading) {
     return (
-      <div style={styles.center}>
-        <p style={styles.text}>로딩 중...</p>
+      <div className={styles.center}>
+        <p className={styles.text}>로딩 중...</p>
       </div>
     )
   }
 
   return (
-    <div style={styles.center}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>MOARA 어드민</h1>
-        <p style={styles.subtitle}>운영팀 전용 관리 대시보드</p>
-        <button style={styles.button} onClick={signInWithGoogle}>
-          Google로 로그인
+    <div className={styles.center}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>MOARA 어드민</h1>
+        <p className={styles.subtitle}>운영팀 전용 관리 대시보드</p>
+        {errorMessage && (
+          <p className={styles.error}>{errorMessage}</p>
+        )}
+        <button
+          className={styles.button}
+          onClick={handleSignIn}
+          disabled={signingIn}
+        >
+          {signingIn ? '로그인 중...' : 'Google로 로그인'}
         </button>
       </div>
     </div>
   )
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  center: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: '16px',
-    padding: '48px',
-    textAlign: 'center',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-    minWidth: '360px',
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: '8px',
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#6b7280',
-    marginBottom: '40px',
-  },
-  button: {
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '10px',
-    padding: '14px 32px',
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    width: '100%',
-  },
-  text: {
-    color: '#6b7280',
-    fontSize: '16px',
-  },
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className={styles.center}>
+        <p className={styles.text}>로딩 중...</p>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
+  )
 }
