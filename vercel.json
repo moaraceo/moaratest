@@ -1,5 +1,4 @@
 {
   "buildCommand": "cd apps/admin && npm install && NODE_ENV=production npm run build",
-  "outputDirectory": "apps/admin/.next",
   "framework": "nextjs"
 }
