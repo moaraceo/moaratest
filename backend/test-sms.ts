@@ -1,9 +1,15 @@
+import 'dotenv/config'
 import coolsms from 'coolsms-node-sdk'
 
-const API_KEY = 'NCSBTQQNX1VHHCMZ'
-const API_SECRET = 'LH6UYHFZ4UEICAEYZKCWDQC77JHKFREA'
-const FROM = '01021322229'
-const TO = '01021322229'
+const API_KEY = process.env['SMS_API_KEY'] ?? ''
+const API_SECRET = process.env['SMS_API_SECRET'] ?? ''
+const FROM = process.env['SMS_FROM'] ?? ''
+const TO = process.env['SMS_FROM'] ?? ''
+
+if (!API_KEY || !API_SECRET || !FROM) {
+  console.error('SMS 환경변수 누락: SMS_API_KEY, SMS_API_SECRET, SMS_FROM 설정 필요')
+  process.exit(1)
+}
 
 async function main() {
   console.log('SDK keys:', Object.keys(coolsms as any))

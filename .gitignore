@@ -53,6 +53,7 @@ backend/.env
 backend/.env.production
 apps/admin/.env.local
 apps/admin/.env.production
+mobile/.env
 mobile/.env.production
 google-service-account.json
 
